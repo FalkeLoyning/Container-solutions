@@ -75,22 +75,58 @@ function FlatRoof() {
 }
 
 function SlopedRoof() {
-  const drop = 0.4;
-  const vertices = new Float32Array([
-    0, H, 0,
-    0, H, W,
-    L, H - drop, 0,
-    L, H - drop, W,
+  // 6% slope across width (left z=0 high, right z=W low)
+  const rise = W * 0.06; // ~146mm scaled
+  const roofMat = <meshStandardMaterial color="#0E0E10" metalness={0.4} roughness={0.6} side={2} />;
+
+  // Main sloped panel
+  const panelVerts = new Float32Array([
+    0, H + rise, 0,   // back-left (high)
+    L, H + rise, 0,   // front-left (high)
+    0, H, W,          // back-right (low)
+    L, H, W,          // front-right (low)
   ]);
-  const indices = [0, 2, 1, 1, 2, 3];
+  const panelIdx = new Uint16Array([0, 2, 1, 1, 2, 3]);
+
+  // Back gable triangle (x=0): fills gap between wall top and roof
+  const backGableVerts = new Float32Array([
+    0, H, 0,          // back-left wall top
+    0, H + rise, 0,   // back-left roof
+    0, H, W,          // back-right wall top
+  ]);
+  const gableIdx = new Uint16Array([0, 1, 2]);
+
+  // Front gable triangle (x=L)
+  const frontGableVerts = new Float32Array([
+    L, H, 0,          // front-left wall top
+    L, H + rise, 0,   // front-left roof
+    L, H, W,          // front-right wall top
+  ]);
+
   return (
-    <mesh receiveShadow>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={vertices} count={4} itemSize={3} />
-        <bufferAttribute attach="index" array={new Uint16Array(indices)} count={6} itemSize={1} />
-      </bufferGeometry>
-      <meshStandardMaterial color="#0E0E10" metalness={0.4} roughness={0.6} side={2} />
-    </mesh>
+    <group>
+      <mesh receiveShadow>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={panelVerts} count={4} itemSize={3} />
+          <bufferAttribute attach="index" array={panelIdx} count={6} itemSize={1} />
+        </bufferGeometry>
+        {roofMat}
+      </mesh>
+      <mesh>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={backGableVerts} count={3} itemSize={3} />
+          <bufferAttribute attach="index" array={gableIdx} count={3} itemSize={1} />
+        </bufferGeometry>
+        {roofMat}
+      </mesh>
+      <mesh>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={frontGableVerts} count={3} itemSize={3} />
+          <bufferAttribute attach="index" array={gableIdx} count={3} itemSize={1} />
+        </bufferGeometry>
+        {roofMat}
+      </mesh>
+    </group>
   );
 }
 
@@ -279,7 +315,7 @@ export default function ContainerModel() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const elements = useConfigStore((s) => s.elements);
   const cladding = useConfigStore((s) => s.cladding);
-  const slopedH = slopedRoof.enabled ? H - 0.4 : H;
+
 
   return (
     <group position={[-L / 2, 0, -W / 2]}>
@@ -295,7 +331,7 @@ export default function ContainerModel() {
       <ClickableWall wallName="right" position={[L / 2, H / 2, W]} size={[L, H, T]} />
 
       {/* Front wall (x=L) */}
-      <ClickableWall wallName="front" position={[L, slopedH / 2, W / 2]} size={[T, slopedH, W]} />
+      <ClickableWall wallName="front" position={[L, H / 2, W / 2]} size={[T, H, W]} />
 
       {/* Roof */}
       {slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />}
