@@ -23,12 +23,13 @@ export default function ActiveFeatures() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
   const containerRal = useConfigStore((s) => s.containerRal);
+  const cladding = useConfigStore((s) => s.cladding);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
-  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal;
+  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal || cladding.enabled;
 
   return (
     <aside className="w-72 min-w-72 h-full overflow-y-auto p-4 space-y-4 border-l border-[var(--border)]">
@@ -79,6 +80,16 @@ export default function ActiveFeatures() {
           values={[
             ["RAL", containerRal],
             ["Farge", RAL_COLORS.find((r) => r.code === containerRal)?.name || "Egendefinert"],
+          ]}
+        />
+      )}
+
+      {cladding.enabled && (
+        <FeatureRow
+          label="🪨 Kledning"
+          values={[
+            ["Retning", cladding.direction === "horizontal" ? "Liggende" : "Stående"],
+            ["Farge", cladding.ral ? `RAL ${cladding.ral}` : "Standard"],
           ]}
         />
       )}

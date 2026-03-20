@@ -76,6 +76,8 @@ const useConfigStore = create((set, get) => ({
   containerColor: "#94a3b8",
   containerRal: null,
 
+  cladding: { enabled: false, direction: "horizontal", color: "#94a3b8", ral: null },
+
   // Start placement mode
   startPlacement: () => set({ placementMode: "pending", selectedId: null }),
   cancelPlacement: () => set({ placementMode: null }),
@@ -131,6 +133,15 @@ const useConfigStore = create((set, get) => ({
   setShowDrawing: (v) => set({ showDrawing: v }),
 
   setContainerColor: (ral, hex) => set({ containerRal: ral, containerColor: hex }),
+
+  toggleCladding: () =>
+    set((s) => ({ cladding: { ...s.cladding, enabled: !s.cladding.enabled } })),
+
+  setCladdingDirection: (dir) =>
+    set((s) => ({ cladding: { ...s.cladding, direction: dir } })),
+
+  setCladdingColor: (ral, hex) =>
+    set((s) => ({ cladding: { ...s.cladding, ral, color: hex } })),
 }));
 
 export default useConfigStore;

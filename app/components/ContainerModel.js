@@ -65,10 +65,11 @@ function Floor() {
 }
 
 function FlatRoof() {
+  const containerColor = useConfigStore((s) => s.containerColor);
   return (
     <mesh position={[L / 2, H, W / 2]} receiveShadow>
       <boxGeometry args={[L, T, W]} />
-      <meshStandardMaterial color={steelDark} metalness={0.4} roughness={0.6} />
+      <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.6} />
     </mesh>
   );
 }
@@ -88,7 +89,7 @@ function SlopedRoof() {
         <bufferAttribute attach="attributes-position" array={vertices} count={4} itemSize={3} />
         <bufferAttribute attach="index" array={new Uint16Array(indices)} count={6} itemSize={1} />
       </bufferGeometry>
-      <meshStandardMaterial color={steelDark} metalness={0.4} roughness={0.6} side={2} />
+      <meshStandardMaterial color="#0E0E10" metalness={0.4} roughness={0.6} side={2} />
     </mesh>
   );
 }
@@ -204,9 +205,80 @@ function getWallTransform(wall, el) {
   }
 }
 
+// Generate plank positions for one wall
+function generatePlanks(wallLength, wallHeight, direction) {
+  const plankSize = 0.15; // 150mm
+  const gap = 0.008;      // 8mm gap between planks
+  const step = plankSize + gap;
+  const planks = [];
+
+  if (direction === "horizontal") {
+    const count = Math.floor(wallHeight / step);
+    for (let i = 0; i < count; i++) {
+      planks.push({
+        y: plankSize / 2 + i * step,
+        size: [wallLength, plankSize],
+      });
+    }
+  } else {
+    const count = Math.floor(wallLength / step);
+    for (let i = 0; i < count; i++) {
+      planks.push({
+        x: plankSize / 2 + i * step,
+        size: [plankSize, wallHeight],
+      });
+    }
+  }
+  return planks;
+}
+
+function Cladding({ cladding }) {
+  const { direction, color } = cladding;
+  const depth = 0.022; // plank thickness
+  const off = T / 2 + depth / 2 + 0.001;
+
+  // Darken the color slightly for the gap shadow effect
+  const walls = [
+    { name: "back",  len: W, h: H, pos: (p) => [-off,        p.y || H / 2, p.x || W / 2],  boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "front", len: W, h: H, pos: (p) => [L + off,     p.y || H / 2, p.x || W / 2],  boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "left",  len: L, h: H, pos: (p) => [p.x || L / 2, p.y || H / 2, -off],          boxArgs: (s) => [s[0], s[1], depth] },
+    { name: "right", len: L, h: H, pos: (p) => [p.x || L / 2, p.y || H / 2, W + off],       boxArgs: (s) => [s[0], s[1], depth] },
+  ];
+
+  return (
+    <group>
+      {walls.map((wall) => {
+        const planks = generatePlanks(wall.len, wall.h, direction);
+        return planks.map((plank, i) => {
+          const posData = {};
+          if (direction === "horizontal") {
+            posData.y = plank.y;
+          } else {
+            posData.x = plank.x;
+            posData.y = wall.h / 2;
+          }
+          const pos = wall.pos(posData);
+          const args = wall.boxArgs(plank.size);
+          return (
+            <mesh key={`${wall.name}-${i}`} position={pos} castShadow>
+              <boxGeometry args={args} />
+              <meshStandardMaterial
+                color={color}
+                metalness={0.1}
+                roughness={0.85}
+              />
+            </mesh>
+          );
+        });
+      })}
+    </group>
+  );
+}
+
 export default function ContainerModel() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const elements = useConfigStore((s) => s.elements);
+  const cladding = useConfigStore((s) => s.cladding);
   const slopedH = slopedRoof.enabled ? H - 0.4 : H;
 
   return (
@@ -227,6 +299,9 @@ export default function ContainerModel() {
 
       {/* Roof */}
       {slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />}
+
+      {/* Cladding */}
+      {cladding.enabled && <Cladding cladding={cladding} />}
 
       {/* Render all elements */}
       {elements.map((el) =>

@@ -213,6 +213,10 @@ export default function Sidebar() {
   const containerColor = useConfigStore((s) => s.containerColor);
   const containerRal = useConfigStore((s) => s.containerRal);
   const setContainerColor = useConfigStore((s) => s.setContainerColor);
+  const cladding = useConfigStore((s) => s.cladding);
+  const toggleCladding = useConfigStore((s) => s.toggleCladding);
+  const setCladdingDirection = useConfigStore((s) => s.setCladdingDirection);
+  const setCladdingColor = useConfigStore((s) => s.setCladdingColor);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
@@ -294,11 +298,28 @@ export default function Sidebar() {
         </h3>
         {containerRal ? (
           <p className="text-xs text-[var(--text-primary)]">
-            RAL {containerRal} – {RAL_COLORS.find((r) => r.code === containerRal)?.name}
+            RAL {containerRal} – {RAL_COLORS.find((r) => r.code === containerRal)?.name || "Egendefinert"}
           </p>
         ) : (
           <p className="text-xs text-[var(--text-secondary)] italic">Standard stålgrå</p>
         )}
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            placeholder="RAL-kode (f.eks. 5010)"
+            className="flex-1 px-2 py-1.5 rounded-lg text-sm bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const code = e.target.value.trim();
+                const match = RAL_COLORS.find((r) => r.code === code);
+                if (match) {
+                  setContainerColor(match.code, match.hex);
+                  e.target.value = "";
+                }
+              }
+            }}
+          />
+        </div>
         <div className="grid grid-cols-5 gap-1.5">
           {RAL_COLORS.map((ral) => (
             <button
@@ -332,10 +353,85 @@ export default function Sidebar() {
         <Toggle label="📐 Skråtak" checked={slopedRoof.enabled} onChange={toggleSlopedRoof} />
         {slopedRoof.enabled && (
           <p className="text-xs text-[var(--text-secondary)] pl-[52px]">
-            400mm fall mot front
+            400mm fall mot front · Alltid sort
           </p>
         )}
         <Toggle label="🪵 Aluminium gulvplate" checked={aluminumFloor.enabled} onChange={toggleAluminumFloor} />
+      </div>
+
+      {/* Cladding */}
+      <div className="pt-4 border-t border-[var(--border)] space-y-3">
+        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          🪨 Kledning
+        </h3>
+        <Toggle label="Aktiver kledning" checked={cladding.enabled} onChange={toggleCladding} />
+        {cladding.enabled && (
+          <>
+            <div className="flex gap-3 pl-1">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  checked={cladding.direction === "horizontal"}
+                  onChange={() => setCladdingDirection("horizontal")}
+                  className="accent-[var(--accent)]"
+                />
+                Liggende
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  checked={cladding.direction === "vertical"}
+                  onChange={() => setCladdingDirection("vertical")}
+                  className="accent-[var(--accent)]"
+                />
+                Stående
+              </label>
+            </div>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Kledningsfarge: {cladding.ral ? `RAL ${cladding.ral}` : "Standard"}
+            </p>
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="RAL-kode"
+                className="flex-1 px-2 py-1.5 rounded-lg text-sm bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const code = e.target.value.trim();
+                    const match = RAL_COLORS.find((r) => r.code === code);
+                    if (match) {
+                      setCladdingColor(match.code, match.hex);
+                      e.target.value = "";
+                    }
+                  }
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {RAL_COLORS.map((ral) => (
+                <button
+                  key={ral.code}
+                  onClick={() => setCladdingColor(ral.code, ral.hex)}
+                  title={`RAL ${ral.code} – ${ral.name}`}
+                  className={`aspect-square rounded-lg border-2 transition-all ${
+                    cladding.ral === ral.code
+                      ? "border-[var(--accent)] scale-110 shadow-md"
+                      : "border-transparent hover:border-[var(--border-hover)]"
+                  }`}
+                  style={{ backgroundColor: ral.hex }}
+                />
+              ))}
+            </div>
+            {cladding.ral && (
+              <button
+                onClick={() => setCladdingColor(null, "#94a3b8")}
+                className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
+              >
+                ↩ Tilbakestill kledningsfarge
+              </button>
+            )}
+          </>
+        )}
       </div>
     </aside>
   );
