@@ -1,22 +1,33 @@
 import { create } from "zustand";
 
-// Container size options (internal dimensions in mm)
+// Container size options (external dimensions in mm)
+// floorHeight = distance from ground to top of internal floor
+// forkliftPockets: positions from each end on the long sides
 export const CONTAINER_SIZES = {
-  "10ft":    { label: "10ft",    length: 2991, width: 2438, height: 2591, wallThickness: 50 },
-  "20ft":    { label: "20ft",    length: 6058, width: 2438, height: 2591, wallThickness: 50 },
-  "20ft HC": { label: "20ft HC", length: 6058, width: 2438, height: 2896, wallThickness: 50 },
-  "40ft":    { label: "40ft",    length: 12192, width: 2438, height: 2591, wallThickness: 50 },
+  "10ft":    { label: "10ft",    length: 2991, width: 2438, height: 2591, wallThickness: 50, floorHeight: 170 },
+  "20ft":    { label: "20ft",    length: 6058, width: 2438, height: 2591, wallThickness: 50, floorHeight: 170 },
+  "20ft HC": { label: "20ft HC", length: 6058, width: 2438, height: 2896, wallThickness: 50, floorHeight: 170 },
+  "40ft":    { label: "40ft",    length: 12192, width: 2438, height: 2591, wallThickness: 50, floorHeight: 170 },
+};
+
+// Forklift pocket dimensions (mm)
+export const FORKLIFT_POCKET = {
+  width: 360,    // opening width along container length
+  height: 120,   // opening height
+  depth: 100,    // how deep into the bottom rail
+  inset: 900,    // distance from each end to pocket center
 };
 
 // Default for backwards compat – components should use store.containerSize instead
 export const CONTAINER = CONTAINER_SIZES["20ft"];
 
 export function getWallDims(c) {
+  const internalH = c.height - c.floorHeight;
   return {
-    front: { w: c.width, h: c.height },
-    back:  { w: c.width, h: c.height },
-    left:  { w: c.length, h: c.height },
-    right: { w: c.length, h: c.height },
+    front: { w: c.width,  h: internalH },
+    back:  { w: c.width,  h: internalH },
+    left:  { w: c.length, h: internalH },
+    right: { w: c.length, h: internalH },
     floor: { w: c.length, h: c.width },
     roof:  { w: c.length, h: c.width },
   };

@@ -10,7 +10,8 @@ import useConfigStore, { CONTAINER_SIZES } from "../store/useConfigStore";
 const S = 0.001;
 
 // Converts a 3D click point on a wall mesh to wall-local coordinates (mm, origin bottom-left)
-function worldToWallLocal(wallName, point, L, W) {
+// For vertical walls, Y=0 is at the floor surface (floorHeight above ground)
+function worldToWallLocal(wallName, point, L, W, F) {
   // point is in group-local coords (group is offset by -L/2, 0, -W/2)
   // so we need to add the group offset back
   const px = point.x + L / 2;
@@ -19,17 +20,13 @@ function worldToWallLocal(wallName, point, L, W) {
 
   switch (wallName) {
     case "front":
-      // Front at x=L, viewed from outside (+X): local X = W - pz, local Y = py
-      return { x: Math.round((W - pz) / S), y: Math.round(py / S) };
+      return { x: Math.round((W - pz) / S), y: Math.round((py - F) / S) };
     case "back":
-      // Back at x=0, viewed from outside (-X): local X = pz, local Y = py
-      return { x: Math.round(pz / S), y: Math.round(py / S) };
+      return { x: Math.round(pz / S), y: Math.round((py - F) / S) };
     case "left":
-      // Left at z=0, viewed from outside (-Z): local X = px, local Y = py
-      return { x: Math.round(px / S), y: Math.round(py / S) };
+      return { x: Math.round(px / S), y: Math.round((py - F) / S) };
     case "right":
-      // Right at z=W, viewed from outside (+Z): local X = (L - px), local Y = py
-      return { x: Math.round((L - px) / S), y: Math.round(py / S) };
+      return { x: Math.round((L - px) / S), y: Math.round((py - F) / S) };
     case "floor":
       return { x: Math.round(px / S), y: Math.round(pz / S) };
     case "roof":
@@ -50,7 +47,7 @@ function DragHandler({ dragging, onDragMove, onDragEnd }) {
     const canvas = gl.domElement;
     const ray = rayRef.current;
     const c = CONTAINER_SIZES[containerSize];
-    const cL = c.length * S, cW = c.width * S;
+    const cL = c.length * S, cW = c.width * S, cF = c.floorHeight * S;
 
     const onMove = (e) => {
       const rect = canvas.getBoundingClientRect();
@@ -67,7 +64,7 @@ function DragHandler({ dragging, onDragMove, onDragEnd }) {
       });
       const hits = ray.intersectObjects(wallMeshes, false);
       if (hits.length > 0) {
-        onDragMove(worldToWallLocal(dragging.wall, hits[0].point, cL, cW));
+        onDragMove(worldToWallLocal(dragging.wall, hits[0].point, cL, cW, cF));
       }
     };
 
@@ -91,14 +88,14 @@ function ClickableScene({ onWallClick, onDragStart, dragging }) {
   const handlePointerDown = useCallback(
     (event) => {
       const c = CONTAINER_SIZES[containerSize];
-      const cL = c.length * S, cW = c.width * S;
+      const cL = c.length * S, cW = c.width * S, cF = c.floorHeight * S;
 
       if (placementMode === "pending") {
         let obj = event.object;
         while (obj) {
           if (obj.userData?.wall && !obj.userData?.elementId) {
             const wallName = obj.userData.wall;
-            const localCoords = worldToWallLocal(wallName, event.point, cL, cW);
+            const localCoords = worldToWallLocal(wallName, event.point, cL, cW, cF);
             onWallClick(wallName, localCoords);
             event.stopPropagation();
             return;
@@ -119,7 +116,7 @@ function ClickableScene({ onWallClick, onDragStart, dragging }) {
           const elements = useConfigStore.getState().elements;
           const el = elements.find((e) => e.id === obj.userData.elementId);
           if (el) {
-            const wallLocal = worldToWallLocal(el.wall, event.point, cL, cW);
+            const wallLocal = worldToWallLocal(el.wall, event.point, cL, cW, cF);
             onDragStart(el.id, el.wall, wallLocal.x - el.x, wallLocal.y - el.y);
             event.stopPropagation();
             return;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import useConfigStore, { CONTAINER_SIZES, getWallDims } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES, getWallDims, FORKLIFT_POCKET } from "../store/useConfigStore";
 import InteriorObjects from "./InteriorObjects";
 
 // Scale: mm -> Three.js units (meters)
@@ -12,7 +12,14 @@ const steelColor = "#94a3b8";
 function useDims() {
   const size = useConfigStore((s) => s.containerSize);
   const c = CONTAINER_SIZES[size];
-  return { L: c.length * S, W: c.width * S, H: c.height * S, T: c.wallThickness * S, c };
+  return {
+    L: c.length * S,
+    W: c.width * S,
+    H: c.height * S,
+    T: c.wallThickness * S,
+    F: c.floorHeight * S,
+    c,
+  };
 }
 const steelDark = "#78909c";
 const doorColor = "#b45309";
@@ -55,9 +62,9 @@ function ClickableWall({ wallName, position, size, rotation, children }) {
 
 function Floor() {
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
-  const { L, W, T } = useDims();
+  const { L, W, T, F } = useDims();
   return (
-    <mesh position={[L / 2, T / 2, W / 2]} receiveShadow userData={{ wall: "floor" }}>
+    <mesh position={[L / 2, F, W / 2]} receiveShadow userData={{ wall: "floor" }}>
       <boxGeometry args={[L, T, W]} />
       <meshStandardMaterial
         color={aluminumFloor.enabled ? aluminumColor : steelDark}
@@ -77,6 +84,82 @@ function FlatRoof() {
       <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.6} />
     </mesh>
   );
+}
+
+// Bottom steel frame below the floor
+function BaseFrame() {
+  const containerColor = useConfigStore((s) => s.containerColor);
+  const { L, W, F, T } = useDims();
+  const railH = F;
+  const railD = T; // side rail depth (thickness in Z direction)
+
+  return (
+    <group>
+      {/* Left bottom rail */}
+      <mesh position={[L / 2, railH / 2, 0]} castShadow>
+        <boxGeometry args={[L, railH, railD]} />
+        <meshStandardMaterial color={containerColor} metalness={0.3} roughness={0.6} />
+      </mesh>
+      {/* Right bottom rail */}
+      <mesh position={[L / 2, railH / 2, W]} castShadow>
+        <boxGeometry args={[L, railH, railD]} />
+        <meshStandardMaterial color={containerColor} metalness={0.3} roughness={0.6} />
+      </mesh>
+      {/* Front bottom crossbar */}
+      <mesh position={[L, railH / 2, W / 2]} castShadow>
+        <boxGeometry args={[railD, railH, W]} />
+        <meshStandardMaterial color={containerColor} metalness={0.3} roughness={0.6} />
+      </mesh>
+      {/* Back bottom crossbar */}
+      <mesh position={[0, railH / 2, W / 2]} castShadow>
+        <boxGeometry args={[railD, railH, W]} />
+        <meshStandardMaterial color={containerColor} metalness={0.3} roughness={0.6} />
+      </mesh>
+      {/* Cross members (every ~300mm) */}
+      {Array.from({ length: Math.floor(L / S / 500) - 1 }, (_, i) => {
+        const xPos = (i + 1) * 0.5;
+        if (xPos > L - T) return null;
+        return (
+          <mesh key={i} position={[xPos, railH * 0.4, W / 2]}>
+            <boxGeometry args={[0.01, railH * 0.6, W - railD * 2]} />
+            <meshStandardMaterial color={steelDark} metalness={0.3} roughness={0.7} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+// Forklift pocket openings on left/right bottom rails
+function ForkliftPockets() {
+  const containerColor = useConfigStore((s) => s.containerColor);
+  const { L, W, F, T } = useDims();
+  const pw = FORKLIFT_POCKET.width * S;
+  const ph = FORKLIFT_POCKET.height * S;
+  const pd = FORKLIFT_POCKET.depth * S;
+  const inset = FORKLIFT_POCKET.inset * S;
+
+  const pocketPositions = [inset, L - inset];
+  const pockets = [];
+
+  for (const px of pocketPositions) {
+    // Left side (z=0): pocket opening facing -Z
+    pockets.push(
+      <mesh key={`L-${px}`} position={[px, ph / 2, -0.001]}>
+        <boxGeometry args={[pw, ph, pd]} />
+        <meshBasicMaterial color={holeColor} />
+      </mesh>
+    );
+    // Right side (z=W): pocket opening facing +Z
+    pockets.push(
+      <mesh key={`R-${px}`} position={[px, ph / 2, W + 0.001]}>
+        <boxGeometry args={[pw, ph, pd]} />
+        <meshBasicMaterial color={holeColor} />
+      </mesh>
+    );
+  }
+
+  return <group>{pockets}</group>;
 }
 
 function SlopedRoof() {
@@ -205,45 +288,37 @@ function VentMesh({ el }) {
 
 // Convert element position (wall-local mm, origin bottom-left when viewed from outside)
 // to 3D world position + rotation
-function getWallTransform(wall, el, { L, W, H, T }) {
+function getWallTransform(wall, el, { L, W, H, T, F }) {
   const elW = el.width * S;
   const elH = el.height * S;
   const cx = el.x * S + elW / 2; // center X in wall-local coords
-  const cy = el.y * S + elH / 2; // center Y in wall-local coords
+  const cy = el.y * S + elH / 2; // center Y in wall-local coords (relative to floor)
   const offset = T / 2 + 0.002;
 
   switch (wall) {
     case "front":
-      // Front wall at x=L, viewed from +X direction
-      // Wall-local: left=+Z(W), right=0, bottom=0, top=H
       return {
-        pos: [L + offset, cy, W - cx],
+        pos: [L + offset, F + cy, W - cx],
         rot: [0, Math.PI / 2, 0],
       };
     case "back":
-      // Back wall at x=0, viewed from -X direction
-      // Wall-local: left=0, right=+Z(W), bottom=0, top=H
       return {
-        pos: [-offset, cy, cx],
+        pos: [-offset, F + cy, cx],
         rot: [0, -Math.PI / 2, 0],
       };
     case "left":
-      // Left wall at z=0, viewed from -Z direction
-      // Wall-local: left=0, right=+X(L), bottom=0, top=H
       return {
-        pos: [cx, cy, -offset],
+        pos: [cx, F + cy, -offset],
         rot: [0, Math.PI, 0],
       };
     case "right":
-      // Right wall at z=W, viewed from +Z direction
-      // Wall-local: left=+X(L), right=0, bottom=0, top=H
       return {
-        pos: [L - cx, cy, W + offset],
+        pos: [L - cx, F + cy, W + offset],
         rot: [0, 0, 0],
       };
     case "floor":
       return {
-        pos: [cx, -offset, cy],
+        pos: [cx, F - offset, cy],
         rot: [-Math.PI / 2, 0, 0],
       };
     case "roof":
@@ -332,15 +407,16 @@ function generatePlanks(wallLength, wallHeight, direction, rects) {
 
 function Cladding({ cladding, elements, hiddenWalls }) {
   const { direction, color } = cladding;
-  const { L, W, H, T } = useDims();
+  const { L, W, H, T, F } = useDims();
+  const wallH = H - F;
   const depth = 0.022;
   const off = T / 2 + depth / 2 + 0.001;
 
   const walls = [
-    { name: "back",  len: W, h: H, pos: (p) => [-off,  p.y, p.x],  boxArgs: (s) => [depth, s[1], s[0]] },
-    { name: "front", len: W, h: H, pos: (p) => [L + off, p.y, p.x], boxArgs: (s) => [depth, s[1], s[0]] },
-    { name: "left",  len: L, h: H, pos: (p) => [p.x, p.y, -off],    boxArgs: (s) => [s[0], s[1], depth] },
-    { name: "right", len: L, h: H, pos: (p) => [p.x, p.y, W + off],  boxArgs: (s) => [s[0], s[1], depth] },
+    { name: "back",  len: W, h: wallH, pos: (p) => [-off,  F + p.y, p.x],  boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "front", len: W, h: wallH, pos: (p) => [L + off, F + p.y, p.x], boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "left",  len: L, h: wallH, pos: (p) => [p.x, F + p.y, -off],    boxArgs: (s) => [s[0], s[1], depth] },
+    { name: "right", len: L, h: wallH, pos: (p) => [p.x, F + p.y, W + off],  boxArgs: (s) => [s[0], s[1], depth] },
   ];
 
   return (
@@ -363,9 +439,9 @@ function Cladding({ cladding, elements, hiddenWalls }) {
 
 // Container door outline rendered on top of cladding
 function ContainerDoorOutline({ wall }) {
-  const { L, W, H, T } = useDims();
+  const { L, W, H, T, F } = useDims();
   const doorW = W;
-  const doorH = H;
+  const doorH = H - F;
   const lineW = 0.015;
   const off = T / 2 + 0.025 + 0.001;
 
@@ -373,8 +449,8 @@ function ContainerDoorOutline({ wall }) {
   const handleMat = <meshBasicMaterial color="#e2e8f0" />;
 
   let pos, rotY;
-  if (wall === "front") { pos = [L + off, H / 2, W / 2]; rotY = Math.PI / 2; }
-  else if (wall === "back") { pos = [-off, H / 2, W / 2]; rotY = -Math.PI / 2; }
+  if (wall === "front") { pos = [L + off, F + doorH / 2, W / 2]; rotY = Math.PI / 2; }
+  else if (wall === "back") { pos = [-off, F + doorH / 2, W / 2]; rotY = -Math.PI / 2; }
   else return null;
 
   return (
@@ -394,10 +470,10 @@ function ContainerDoorOutline({ wall }) {
       <mesh position={[0, 0, 0]}>
         <planeGeometry args={[lineW, doorH - lineW * 2]} />{frameMat}
       </mesh>
-      <mesh position={[-0.06, H * 0.42, 0.001]}>
+      <mesh position={[-0.06, doorH * 0.42, 0.001]}>
         <planeGeometry args={[0.03, 0.12]} />{handleMat}
       </mesh>
-      <mesh position={[0.06, H * 0.42, 0.001]}>
+      <mesh position={[0.06, doorH * 0.42, 0.001]}>
         <planeGeometry args={[0.03, 0.12]} />{handleMat}
       </mesh>
     </group>
@@ -410,18 +486,23 @@ export default function ContainerModel() {
   const cladding = useConfigStore((s) => s.cladding);
   const hiddenWalls = useConfigStore((s) => s.hiddenWalls);
   const containerDoor = useConfigStore((s) => s.containerDoor);
-  const { L, W, H, T } = useDims();
+  const { L, W, H, T, F } = useDims();
+  const wallH = H - F; // internal wall height (above floor)
 
   const isHidden = (w) => hiddenWalls.has(w);
 
   return (
     <group position={[-L / 2, 0, -W / 2]}>
+      {/* Base frame + forklift pockets (always visible) */}
+      <BaseFrame />
+      <ForkliftPockets />
+
       {!isHidden("floor") && <Floor />}
 
-      {!isHidden("back") && <ClickableWall wallName="back" position={[0, H / 2, W / 2]} size={[T, H, W]} />}
-      {!isHidden("left") && <ClickableWall wallName="left" position={[L / 2, H / 2, 0]} size={[L, H, T]} />}
-      {!isHidden("right") && <ClickableWall wallName="right" position={[L / 2, H / 2, W]} size={[L, H, T]} />}
-      {!isHidden("front") && <ClickableWall wallName="front" position={[L, H / 2, W / 2]} size={[T, H, W]} />}
+      {!isHidden("back") && <ClickableWall wallName="back" position={[0, F + wallH / 2, W / 2]} size={[T, wallH, W]} />}
+      {!isHidden("left") && <ClickableWall wallName="left" position={[L / 2, F + wallH / 2, 0]} size={[L, wallH, T]} />}
+      {!isHidden("right") && <ClickableWall wallName="right" position={[L / 2, F + wallH / 2, W]} size={[L, wallH, T]} />}
+      {!isHidden("front") && <ClickableWall wallName="front" position={[L, F + wallH / 2, W / 2]} size={[T, wallH, W]} />}
 
       {!isHidden("roof") && (slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />)}
 

@@ -107,6 +107,14 @@ export default function ActiveFeatures() {
             <span>{cont.length} × {cont.width} × {cont.height}</span>
           </div>
           <div className="flex justify-between">
+            <span>Gulvhøyde</span>
+            <span>{cont.floorHeight} mm</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Innvendig høyde</span>
+            <span>{cont.height - cont.floorHeight} mm</span>
+          </div>
+          <div className="flex justify-between">
             <span>Elementer</span>
             <span>{elements.length} stk</span>
           </div>
