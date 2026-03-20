@@ -728,7 +728,7 @@ function usePerforationTexture() {
 }
 
 // Insulation rendered on the inside face of walls / ceiling
-function InsulationPanels({ insulation, elements }) {
+function InsulationPanels({ insulation, elements, hiddenWalls }) {
   const { L, W, H, T, F } = useDims();
   const wallH = H - F;
   const depth = 0.05; // 50mm
@@ -745,7 +745,7 @@ function InsulationPanels({ insulation, elements }) {
 
   return (
     <group>
-      {wallDefs.filter((w) => insulation.walls.has(w.name)).map((wall) => {
+      {wallDefs.filter((w) => insulation.walls.has(w.name) && !hiddenWalls.has(w.name)).map((wall) => {
         const rects = elements
           .filter((el) => el.wall === wall.name)
           .map((el) => elementToCladdingRect(wall.name, el, { L, W }));
@@ -856,7 +856,7 @@ export default function ContainerModel() {
 
       {cladding.enabled && <Cladding cladding={cladding} elements={elements} hiddenWalls={hiddenWalls} />}
 
-      {insulation.enabled && <InsulationPanels insulation={insulation} elements={elements} />}
+      {insulation.enabled && <InsulationPanels insulation={insulation} elements={elements} hiddenWalls={hiddenWalls} />}
 
       {containerDoor.enabled && <ContainerDoorOutline wall={containerDoor.wall} />}
 

@@ -127,12 +127,17 @@ export default function Home() {
 
       {/* Dialogs */}
       {showOrgManager && (
-        <OrgManager userId={userId} onClose={() => setShowOrgManager(false)} />
+        <OrgManager
+          userId={userId}
+          onClose={() => setShowOrgManager(false)}
+          onOrgChange={(id, name) => { setOrgId(id); setOrgName(name); }}
+        />
       )}
       {showProjectDialog && (
         <ProjectDialog
           userId={userId}
           orgId={orgId}
+          initialTab={projectDialogTab}
           onClose={() => setShowProjectDialog(false)}
         />
       )}
