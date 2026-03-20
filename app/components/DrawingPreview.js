@@ -1,10 +1,7 @@
 "use client";
 
-import useConfigStore, { CONTAINER, WALL_DIMS } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES, getWallDims } from "../store/useConfigStore";
 
-const CL = CONTAINER.length;
-const CW = CONTAINER.width;
-const CH = CONTAINER.height;
 const SC = 0.1; // mm -> SVG units
 const PAD = 80;
 
@@ -172,7 +169,7 @@ function WallView({ title, wallName, wallW, wallH, elements, slopedRoof }) {
   );
 }
 
-function TopView({ elements, slopedRoof }) {
+function TopView({ elements, slopedRoof, CL, CW }) {
   const w = CL * SC;
   const h = CW * SC;
 
@@ -262,6 +259,10 @@ export default function DrawingPreview() {
   const elements = useConfigStore((s) => s.elements);
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
+  const containerSize = useConfigStore((s) => s.containerSize);
+  const c = CONTAINER_SIZES[containerSize];
+  const CL = c.length, CW = c.width, CH = c.height;
+  const wallDims = getWallDims(c);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
@@ -282,7 +283,7 @@ export default function DrawingPreview() {
           <div>
             <h2 className="text-xl font-bold">📐 Produksjonstegninger</h2>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              20ft ISO Container – {CL} × {CW} × {CH} mm · {elements.length} elementer
+              {containerSize} ISO Container – {CL} × {CW} × {CH} mm · {elements.length} elementer
             </p>
           </div>
           <button
@@ -295,7 +296,7 @@ export default function DrawingPreview() {
         </div>
 
         {/* Top view */}
-        <TopView elements={elements} slopedRoof={slopedRoof.enabled} />
+        <TopView elements={elements} slopedRoof={slopedRoof.enabled} CL={CL} CW={CW} />
 
         {/* Individual wall views */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -304,8 +305,8 @@ export default function DrawingPreview() {
               key={wall}
               title={`${WALL_LABELS[wall]} vegg`}
               wallName={wall}
-              wallW={WALL_DIMS[wall].w}
-              wallH={WALL_DIMS[wall].h}
+              wallW={wallDims[wall].w}
+              wallH={wallDims[wall].h}
               elements={elements}
               slopedRoof={slopedRoof.enabled}
             />
@@ -317,7 +318,7 @@ export default function DrawingPreview() {
           <h4 className="font-semibold text-[var(--accent)]">Spesifikasjoner</h4>
           <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs">
             <span className="text-[var(--text-secondary)]">Container type:</span>
-            <span>20ft ISO Standard</span>
+            <span>{containerSize} ISO{containerSize.includes("HC") ? " High Cube" : " Standard"}</span>
             <span className="text-[var(--text-secondary)]">Ytre mål:</span>
             <span>{CL} × {CW} × {CH} mm</span>
             {slopedRoof.enabled && (

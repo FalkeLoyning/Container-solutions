@@ -1,22 +1,29 @@
 import { create } from "zustand";
 
-// 20ft ISO container dimensions in mm
-export const CONTAINER = {
-  length: 6058,
-  width: 2438,
-  height: 2591,
-  wallThickness: 50,
+// Container size options (internal dimensions in mm)
+export const CONTAINER_SIZES = {
+  "10ft":    { label: "10ft",    length: 2991, width: 2438, height: 2591, wallThickness: 50 },
+  "20ft":    { label: "20ft",    length: 6058, width: 2438, height: 2591, wallThickness: 50 },
+  "20ft HC": { label: "20ft HC", length: 6058, width: 2438, height: 2896, wallThickness: 50 },
+  "40ft":    { label: "40ft",    length: 12192, width: 2438, height: 2591, wallThickness: 50 },
 };
 
-// Wall dimensions: width × height (local coords, origin = bottom-left)
-export const WALL_DIMS = {
-  front: { w: CONTAINER.width, h: CONTAINER.height },
-  back:  { w: CONTAINER.width, h: CONTAINER.height },
-  left:  { w: CONTAINER.length, h: CONTAINER.height },
-  right: { w: CONTAINER.length, h: CONTAINER.height },
-  floor: { w: CONTAINER.length, h: CONTAINER.width },
-  roof:  { w: CONTAINER.length, h: CONTAINER.width },
-};
+// Default for backwards compat – components should use store.containerSize instead
+export const CONTAINER = CONTAINER_SIZES["20ft"];
+
+export function getWallDims(c) {
+  return {
+    front: { w: c.width, h: c.height },
+    back:  { w: c.width, h: c.height },
+    left:  { w: c.length, h: c.height },
+    right: { w: c.length, h: c.height },
+    floor: { w: c.length, h: c.width },
+    roof:  { w: c.length, h: c.width },
+  };
+}
+
+// Keep static for legacy references
+export const WALL_DIMS = getWallDims(CONTAINER);
 
 export const RAL_COLORS = [
   { code: "1015", name: "Lys elfenben", hex: "#E6D2B5" },
@@ -40,8 +47,8 @@ function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
-function clampElement(el) {
-  const wallDim = WALL_DIMS[el.wall] || { w: 6058, h: 2591 };
+function clampElement(el, wallDims) {
+  const wallDim = wallDims[el.wall] || { w: 6058, h: 2591 };
   if (el.type === "door") {
     const w = clamp(el.width, 1, wallDim.w);
     const h = clamp(el.height, 1, wallDim.h);
@@ -60,6 +67,9 @@ function clampElement(el) {
 let nextId = 1;
 
 const useConfigStore = create((set, get) => ({
+  // Container size
+  containerSize: "20ft",
+
   // Array of placed elements
   elements: [],
 
@@ -94,10 +104,19 @@ const useConfigStore = create((set, get) => ({
   startPlacement: () => set({ placementMode: "pending", selectedId: null }),
   cancelPlacement: () => set({ placementMode: null }),
 
+  setContainerSize: (size) => set({
+    containerSize: size,
+    elements: [],
+    selectedId: null,
+    placementMode: null,
+  }),
+
   // Called when user clicks a wall face in 3D — adds element with defaults
   placeElement: (wall, type, clickX, clickY) => {
     const id = nextId++;
     const base = { id, wall };
+    const c = CONTAINER_SIZES[get().containerSize];
+    const wd = getWallDims(c);
     let el;
     if (type === "door") {
       const isHorizontal = wall === "floor" || wall === "roof";
@@ -105,13 +124,13 @@ const useConfigStore = create((set, get) => ({
         ...base, type: "door",
         x: Math.round(clickX), y: isHorizontal ? Math.round(clickY) : 0,
         width: 1000, height: isHorizontal ? 1000 : 2100,
-      });
+      }, wd);
     } else {
       el = clampElement({
         ...base, type: "ventilation",
         x: Math.round(clickX), y: Math.round(clickY),
         width: 400, height: 300, shape: "rectangle",
-      });
+      }, wd);
     }
     set((s) => ({
       elements: [...s.elements, el],
@@ -122,11 +141,15 @@ const useConfigStore = create((set, get) => ({
 
   // Update an existing element
   updateElement: (id, partial) =>
-    set((s) => ({
-      elements: s.elements.map((el) =>
-        el.id === id ? clampElement({ ...el, ...partial }) : el
-      ),
-    })),
+    set((s) => {
+      const c = CONTAINER_SIZES[s.containerSize];
+      const wd = getWallDims(c);
+      return {
+        elements: s.elements.map((el) =>
+          el.id === id ? clampElement({ ...el, ...partial }, wd) : el
+        ),
+      };
+    }),
 
   // Remove element
   removeElement: (id) =>
@@ -175,11 +198,12 @@ const useConfigStore = create((set, get) => ({
     const { geometryCache, geometryDataToBufferGeometry } = require("../lib/stepLoader");
     const id = nextId++;
     geometryCache.set(id, geometryDataToBufferGeometry(geometryData));
+    const c = CONTAINER_SIZES[get().containerSize];
     const obj = {
       id, name,
-      x: CONTAINER.length / 2,
+      x: c.length / 2,
       y: 0,
-      z: CONTAINER.width / 2,
+      z: c.width / 2,
       rotY: 0,
       scale: 1,
       color: "#78909c",

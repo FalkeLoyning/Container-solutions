@@ -5,16 +5,12 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid } from "@react-three/drei";
 import { Raycaster } from "three";
 import ContainerModel from "./ContainerModel";
-import useConfigStore, { CONTAINER, WALL_DIMS } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES } from "../store/useConfigStore";
 
 const S = 0.001;
-const L = CONTAINER.length * S;
-const W = CONTAINER.width * S;
-const H = CONTAINER.height * S;
-const T = CONTAINER.wallThickness * S;
 
 // Converts a 3D click point on a wall mesh to wall-local coordinates (mm, origin bottom-left)
-function worldToWallLocal(wallName, point) {
+function worldToWallLocal(wallName, point, L, W) {
   // point is in group-local coords (group is offset by -L/2, 0, -W/2)
   // so we need to add the group offset back
   const px = point.x + L / 2;
@@ -47,11 +43,14 @@ function DragHandler({ dragging, onDragMove, onDragEnd }) {
   const { camera, scene, gl } = useThree();
   const rayRef = useRef(null);
   if (!rayRef.current) rayRef.current = new Raycaster();
+  const containerSize = useConfigStore((s) => s.containerSize);
 
   useEffect(() => {
     if (!dragging) return;
     const canvas = gl.domElement;
     const ray = rayRef.current;
+    const c = CONTAINER_SIZES[containerSize];
+    const cL = c.length * S, cW = c.width * S;
 
     const onMove = (e) => {
       const rect = canvas.getBoundingClientRect();
@@ -68,7 +67,7 @@ function DragHandler({ dragging, onDragMove, onDragEnd }) {
       });
       const hits = ray.intersectObjects(wallMeshes, false);
       if (hits.length > 0) {
-        onDragMove(worldToWallLocal(dragging.wall, hits[0].point));
+        onDragMove(worldToWallLocal(dragging.wall, hits[0].point, cL, cW));
       }
     };
 
@@ -80,22 +79,26 @@ function DragHandler({ dragging, onDragMove, onDragEnd }) {
       canvas.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [dragging, onDragMove, onDragEnd, camera, scene, gl]);
+  }, [dragging, onDragMove, onDragEnd, camera, scene, gl, containerSize]);
 
   return null;
 }
 
 function ClickableScene({ onWallClick, onDragStart, dragging }) {
   const placementMode = useConfigStore((s) => s.placementMode);
+  const containerSize = useConfigStore((s) => s.containerSize);
 
   const handlePointerDown = useCallback(
     (event) => {
+      const c = CONTAINER_SIZES[containerSize];
+      const cL = c.length * S, cW = c.width * S;
+
       if (placementMode === "pending") {
         let obj = event.object;
         while (obj) {
           if (obj.userData?.wall && !obj.userData?.elementId) {
             const wallName = obj.userData.wall;
-            const localCoords = worldToWallLocal(wallName, event.point);
+            const localCoords = worldToWallLocal(wallName, event.point, cL, cW);
             onWallClick(wallName, localCoords);
             event.stopPropagation();
             return;
@@ -116,7 +119,7 @@ function ClickableScene({ onWallClick, onDragStart, dragging }) {
           const elements = useConfigStore.getState().elements;
           const el = elements.find((e) => e.id === obj.userData.elementId);
           if (el) {
-            const wallLocal = worldToWallLocal(el.wall, event.point);
+            const wallLocal = worldToWallLocal(el.wall, event.point, cL, cW);
             onDragStart(el.id, el.wall, wallLocal.x - el.x, wallLocal.y - el.y);
             event.stopPropagation();
             return;
@@ -125,7 +128,7 @@ function ClickableScene({ onWallClick, onDragStart, dragging }) {
         obj = obj.parent;
       }
     },
-    [placementMode, onWallClick, onDragStart]
+    [placementMode, onWallClick, onDragStart, containerSize]
   );
 
   return (

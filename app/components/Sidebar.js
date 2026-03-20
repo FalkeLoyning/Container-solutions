@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import useConfigStore, { CONTAINER, WALL_DIMS, RAL_COLORS } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES, getWallDims, RAL_COLORS } from "../store/useConfigStore";
 import { loadStepFile, loadGlbFile } from "../lib/stepLoader";
 
 const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre", floor: "Gulv", roof: "Tak" };
@@ -61,7 +61,8 @@ function Toggle({ label, checked, onChange }) {
 function ElementEditor({ el }) {
   const updateElement = useConfigStore((s) => s.updateElement);
   const removeElement = useConfigStore((s) => s.removeElement);
-  const wallDim = WALL_DIMS[el.wall];
+  const containerSize = useConfigStore((s) => s.containerSize);
+  const wallDim = getWallDims(CONTAINER_SIZES[containerSize])[el.wall];
 
   return (
     <div className="space-y-3">
@@ -223,6 +224,9 @@ export default function Sidebar() {
   const toggleCladding = useConfigStore((s) => s.toggleCladding);
   const setCladdingDirection = useConfigStore((s) => s.setCladdingDirection);
   const setCladdingColor = useConfigStore((s) => s.setCladdingColor);
+  const containerSize = useConfigStore((s) => s.containerSize);
+  const setContainerSize = useConfigStore((s) => s.setContainerSize);
+  const cont = CONTAINER_SIZES[containerSize];
 
   // Interior objects
   const interiorObjects = useConfigStore((s) => s.interiorObjects);
@@ -241,8 +245,30 @@ export default function Sidebar() {
       <div className="mb-2">
         <h2 className="text-lg font-bold">⚙️ Konfigurasjon</h2>
         <p className="text-xs text-[var(--text-secondary)] mt-1">
-          20ft ISO – {CONTAINER.length} × {CONTAINER.width} × {CONTAINER.height} mm
+          {containerSize} ISO – {cont.length} × {cont.width} × {cont.height} mm
         </p>
+      </div>
+
+      {/* Container size picker */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          📦 Containerstørrelse
+        </h3>
+        <div className="grid grid-cols-4 gap-1.5">
+          {Object.keys(CONTAINER_SIZES).map((key) => (
+            <button
+              key={key}
+              onClick={() => setContainerSize(key)}
+              className={`px-2 py-2 text-xs font-semibold rounded-lg border transition-all ${
+                containerSize === key
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
+              }`}
+            >
+              {key}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Add element button */}
@@ -380,21 +406,21 @@ export default function Sidebar() {
                     value={Math.round(obj.x)}
                     onChange={(v) => updateInteriorObject(obj.id, { x: v })}
                     min={0}
-                    max={CONTAINER.length}
+                    max={cont.length}
                   />
                   <NumberInput
                     label="Y (mm fra gulv)"
                     value={Math.round(obj.y)}
                     onChange={(v) => updateInteriorObject(obj.id, { y: v })}
                     min={0}
-                    max={CONTAINER.height}
+                    max={cont.height}
                   />
                   <NumberInput
                     label="Z (mm fra venstre vegg)"
                     value={Math.round(obj.z)}
                     onChange={(v) => updateInteriorObject(obj.id, { z: v })}
                     min={0}
-                    max={CONTAINER.width}
+                    max={cont.width}
                   />
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between text-xs text-[var(--text-secondary)]">

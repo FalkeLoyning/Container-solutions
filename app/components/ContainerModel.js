@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import useConfigStore, { CONTAINER } from "../store/useConfigStore";
+import { useState, useMemo } from "react";
+import useConfigStore, { CONTAINER_SIZES, getWallDims } from "../store/useConfigStore";
 import InteriorObjects from "./InteriorObjects";
 
 // Scale: mm -> Three.js units (meters)
 const S = 0.001;
-const L = CONTAINER.length * S;
-const W = CONTAINER.width * S;
-const H = CONTAINER.height * S;
-const T = CONTAINER.wallThickness * S;
 
 const steelColor = "#94a3b8";
+
+function useDims() {
+  const size = useConfigStore((s) => s.containerSize);
+  const c = CONTAINER_SIZES[size];
+  return { L: c.length * S, W: c.width * S, H: c.height * S, T: c.wallThickness * S, c };
+}
 const steelDark = "#78909c";
 const doorColor = "#b45309";
 const ventColor = "#1e293b";
@@ -53,6 +55,7 @@ function ClickableWall({ wallName, position, size, rotation, children }) {
 
 function Floor() {
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
+  const { L, W, T } = useDims();
   return (
     <mesh position={[L / 2, T / 2, W / 2]} receiveShadow userData={{ wall: "floor" }}>
       <boxGeometry args={[L, T, W]} />
@@ -67,6 +70,7 @@ function Floor() {
 
 function FlatRoof() {
   const containerColor = useConfigStore((s) => s.containerColor);
+  const { L, W, H, T } = useDims();
   return (
     <mesh position={[L / 2, H, W / 2]} receiveShadow userData={{ wall: "roof" }}>
       <boxGeometry args={[L, T, W]} />
@@ -76,6 +80,7 @@ function FlatRoof() {
 }
 
 function SlopedRoof() {
+  const { L, W, H } = useDims();
   // 6% slope across width (left z=0 high, right z=W low)
   const rise = W * 0.06;
   const roofMat = <meshStandardMaterial color="#0E0E10" metalness={0.4} roughness={0.6} side={2} />;
@@ -132,7 +137,8 @@ function SlopedRoof() {
 function DoorMesh({ el }) {
   const selectedId = useConfigStore((s) => s.selectedId);
   const isSelected = selectedId === el.id;
-  const { pos, rot } = getWallTransform(el.wall, el);
+  const dims = useDims();
+  const { pos, rot } = getWallTransform(el.wall, el, dims);
   const w = el.width * S;
   const h = el.height * S;
 
@@ -162,7 +168,8 @@ function DoorMesh({ el }) {
 function VentMesh({ el }) {
   const selectedId = useConfigStore((s) => s.selectedId);
   const isSelected = selectedId === el.id;
-  const { pos, rot } = getWallTransform(el.wall, el);
+  const dims = useDims();
+  const { pos, rot } = getWallTransform(el.wall, el, dims);
   const vw = el.width * S;
   const vh = el.height * S;
 
@@ -198,7 +205,7 @@ function VentMesh({ el }) {
 
 // Convert element position (wall-local mm, origin bottom-left when viewed from outside)
 // to 3D world position + rotation
-function getWallTransform(wall, el) {
+function getWallTransform(wall, el, { L, W, H, T }) {
   const elW = el.width * S;
   const elH = el.height * S;
   const cx = el.x * S + elW / 2; // center X in wall-local coords
@@ -250,7 +257,7 @@ function getWallTransform(wall, el) {
 }
 
 // Convert element position to cladding-local rectangle (3D units)
-function elementToCladdingRect(wallName, el) {
+function elementToCladdingRect(wallName, el, { L, W }) {
   const ew = el.width * S;
   const eh = el.height * S;
   const ey = el.y * S;
@@ -325,6 +332,7 @@ function generatePlanks(wallLength, wallHeight, direction, rects) {
 
 function Cladding({ cladding, elements, hiddenWalls }) {
   const { direction, color } = cladding;
+  const { L, W, H, T } = useDims();
   const depth = 0.022;
   const off = T / 2 + depth / 2 + 0.001;
 
@@ -340,7 +348,7 @@ function Cladding({ cladding, elements, hiddenWalls }) {
       {walls.filter((w) => !hiddenWalls.has(w.name)).map((wall) => {
         const rects = elements
           .filter((el) => el.wall === wall.name)
-          .map((el) => elementToCladdingRect(wall.name, el));
+          .map((el) => elementToCladdingRect(wall.name, el, { L, W }));
         const planks = generatePlanks(wall.len, wall.h, direction, rects);
         return planks.map((plank, i) => (
           <mesh key={`${wall.name}-${i}`} position={wall.pos(plank)} castShadow>
@@ -355,6 +363,7 @@ function Cladding({ cladding, elements, hiddenWalls }) {
 
 // Container door outline rendered on top of cladding
 function ContainerDoorOutline({ wall }) {
+  const { L, W, H, T } = useDims();
   const doorW = W;
   const doorH = H;
   const lineW = 0.015;
@@ -401,6 +410,7 @@ export default function ContainerModel() {
   const cladding = useConfigStore((s) => s.cladding);
   const hiddenWalls = useConfigStore((s) => s.hiddenWalls);
   const containerDoor = useConfigStore((s) => s.containerDoor);
+  const { L, W, H, T } = useDims();
 
   const isHidden = (w) => hiddenWalls.has(w);
 

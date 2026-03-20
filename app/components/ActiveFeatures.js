@@ -1,6 +1,6 @@
 "use client";
 
-import useConfigStore, { CONTAINER, RAL_COLORS } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES, RAL_COLORS } from "../store/useConfigStore";
 
 const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre" };
 
@@ -25,6 +25,8 @@ export default function ActiveFeatures() {
   const containerRal = useConfigStore((s) => s.containerRal);
   const cladding = useConfigStore((s) => s.cladding);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
+  const containerSize = useConfigStore((s) => s.containerSize);
+  const cont = CONTAINER_SIZES[containerSize];
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
@@ -98,11 +100,11 @@ export default function ActiveFeatures() {
         <div className="text-xs text-[var(--text-secondary)] mb-3 space-y-1">
           <div className="flex justify-between">
             <span>Container</span>
-            <span>20ft ISO</span>
+            <span>{containerSize} ISO</span>
           </div>
           <div className="flex justify-between">
             <span>Mål</span>
-            <span>{CONTAINER.length} × {CONTAINER.width} × {CONTAINER.height}</span>
+            <span>{cont.length} × {cont.width} × {cont.height}</span>
           </div>
           <div className="flex justify-between">
             <span>Elementer</span>
