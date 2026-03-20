@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import useConfigStore, { CONTAINER } from "../store/useConfigStore";
 
 // Scale: mm -> Three.js units (meters)
@@ -7,13 +8,45 @@ const S = 0.001;
 const L = CONTAINER.length * S;
 const W = CONTAINER.width * S;
 const H = CONTAINER.height * S;
-const T = CONTAINER.wallThickness * S; // wall thickness
+const T = CONTAINER.wallThickness * S;
 
 const steelColor = "#6b7280";
 const steelDark = "#4b5563";
 const doorColor = "#92400e";
 const ventColor = "#1e1e1e";
 const aluminumColor = "#c0c0c0";
+const highlightColor = "#38bdf8";
+
+// Element type picker shown after clicking a wall
+function WallClickMenu({ position, onSelect, onCancel }) {
+  // This is rendered as an HTML overlay, not in 3D
+  return null; // handled in Canvas3D overlay instead
+}
+
+// Clickable wall component
+function ClickableWall({ wallName, position, size, rotation, children }) {
+  const placementMode = useConfigStore((s) => s.placementMode);
+  const isPlacing = placementMode === "pending";
+
+  return (
+    <mesh
+      position={position}
+      rotation={rotation || [0, 0, 0]}
+      castShadow
+      userData={{ wall: wallName }}
+    >
+      <boxGeometry args={size} />
+      <meshStandardMaterial
+        color={isPlacing ? "#475569" : steelColor}
+        metalness={0.4}
+        roughness={0.6}
+        emissive={isPlacing ? highlightColor : "#000000"}
+        emissiveIntensity={isPlacing ? 0.08 : 0}
+      />
+      {children}
+    </mesh>
+  );
+}
 
 function Floor() {
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
@@ -29,33 +62,6 @@ function Floor() {
   );
 }
 
-function BackWall() {
-  return (
-    <mesh position={[0, H / 2, W / 2]} castShadow>
-      <boxGeometry args={[T, H, W]} />
-      <meshStandardMaterial color={steelColor} metalness={0.4} roughness={0.6} />
-    </mesh>
-  );
-}
-
-function LeftWall() {
-  return (
-    <mesh position={[L / 2, H / 2, 0]} castShadow>
-      <boxGeometry args={[L, H, T]} />
-      <meshStandardMaterial color={steelColor} metalness={0.4} roughness={0.6} />
-    </mesh>
-  );
-}
-
-function RightWall() {
-  return (
-    <mesh position={[L / 2, H / 2, W]} castShadow>
-      <boxGeometry args={[L, H, T]} />
-      <meshStandardMaterial color={steelColor} metalness={0.4} roughness={0.6} />
-    </mesh>
-  );
-}
-
 function FlatRoof() {
   return (
     <mesh position={[L / 2, H, W / 2]} receiveShadow>
@@ -66,144 +72,166 @@ function FlatRoof() {
 }
 
 function SlopedRoof() {
-  // Roof slopes from back (full height) to front (reduced by 400mm)
-  const drop = 0.4; // 400mm drop at front
+  const drop = 0.4;
   const vertices = new Float32Array([
-    // Back-left top
     0, H, 0,
-    // Back-right top
     0, H, W,
-    // Front-left top (lower)
     L, H - drop, 0,
-    // Front-right top (lower)
     L, H - drop, W,
   ]);
   const indices = [0, 2, 1, 1, 2, 3];
-
   return (
     <mesh receiveShadow>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          array={vertices}
-          count={4}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="index"
-          array={new Uint16Array(indices)}
-          count={6}
-          itemSize={1}
-        />
+        <bufferAttribute attach="attributes-position" array={vertices} count={4} itemSize={3} />
+        <bufferAttribute attach="index" array={new Uint16Array(indices)} count={6} itemSize={1} />
       </bufferGeometry>
-      <meshStandardMaterial
-        color={steelDark}
-        metalness={0.4}
-        roughness={0.6}
-        side={2}
-      />
+      <meshStandardMaterial color={steelDark} metalness={0.4} roughness={0.6} side={2} />
     </mesh>
   );
 }
 
-function FrontWall() {
-  const door = useConfigStore((s) => s.door);
-  const slopedRoof = useConfigStore((s) => s.slopedRoof);
-  const wallH = slopedRoof.enabled ? H - 0.4 : H;
+// Render a door element on a wall
+function DoorMesh({ el }) {
+  const selectedId = useConfigStore((s) => s.selectedId);
+  const isSelected = selectedId === el.id;
+  const { pos, rot } = getWallTransform(el.wall, el);
+  const w = el.width * S;
+  const h = el.height * S;
 
   return (
     <group>
-      {/* Front wall */}
-      <mesh position={[L, wallH / 2, W / 2]} castShadow>
-        <boxGeometry args={[T, wallH, W]} />
+      {/* Dark cutout */}
+      <mesh position={pos} rotation={rot}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+      {/* Door panel */}
+      <mesh position={[pos[0] + (rot[1] !== 0 ? 0 : 0), pos[1], pos[2]]} rotation={rot}>
+        <planeGeometry args={[w - 0.015, h - 0.015]} />
         <meshStandardMaterial
-          color={steelColor}
-          metalness={0.4}
-          roughness={0.6}
+          color={isSelected ? highlightColor : doorColor}
+          metalness={0.2}
+          roughness={0.8}
+          emissive={isSelected ? highlightColor : "#000000"}
+          emissiveIntensity={isSelected ? 0.15 : 0}
         />
       </mesh>
-
-      {/* Door opening (dark cutout) */}
-      {door.enabled && (
-        <mesh
-          position={[
-            L + T / 2 + 0.001,
-            door.y * S + (door.height * S) / 2,
-            (W - door.x * S) - (door.width * S) / 2,
-          ]}
-        >
-          <planeGeometry args={[door.width * S, door.height * S]} />
-          <meshBasicMaterial color="#000000" />
-        </mesh>
-      )}
-
-      {/* Door panel */}
-      {door.enabled && (
-        <mesh
-          position={[
-            L + T / 2 + 0.003,
-            door.y * S + (door.height * S) / 2,
-            (W - door.x * S) - (door.width * S) / 2,
-          ]}
-        >
-          <planeGeometry
-            args={[door.width * S - 0.02, door.height * S - 0.02]}
-          />
-          <meshStandardMaterial
-            color={doorColor}
-            metalness={0.2}
-            roughness={0.8}
-          />
-        </mesh>
-      )}
     </group>
   );
 }
 
-function VentilationCutout() {
-  const vent = useConfigStore((s) => s.ventilation);
-  if (!vent.enabled) return null;
-
-  const sz = vent.size * S;
-  const px = vent.x * S + sz / 2;
-  const py = vent.y * S + sz / 2;
+// Render a ventilation cutout on a wall
+function VentMesh({ el }) {
+  const selectedId = useConfigStore((s) => s.selectedId);
+  const isSelected = selectedId === el.id;
+  const { pos, rot } = getWallTransform(el.wall, el);
+  const sz = el.size * S;
 
   return (
     <group>
-      {/* Dark cutout on right wall */}
-      <mesh position={[px, py, W + T / 2 + 0.001]} rotation={[0, 0, 0]}>
-        {vent.shape === "circle" ? (
+      <mesh position={pos} rotation={rot}>
+        {el.shape === "circle" ? (
           <circleGeometry args={[sz / 2, 32]} />
         ) : (
           <planeGeometry args={[sz, sz]} />
         )}
         <meshBasicMaterial color="#000000" />
       </mesh>
-      {/* Vent grille */}
-      <mesh position={[px, py, W + T / 2 + 0.003]}>
-        {vent.shape === "circle" ? (
-          <ringGeometry args={[sz / 2 - 0.02, sz / 2, 32]} />
+      <mesh position={pos} rotation={rot}>
+        {el.shape === "circle" ? (
+          <ringGeometry args={[sz / 2 - 0.015, sz / 2, 32]} />
         ) : (
-          <planeGeometry args={[sz - 0.02, sz - 0.02]} />
+          <planeGeometry args={[sz - 0.015, sz - 0.015]} />
         )}
-        <meshStandardMaterial color={ventColor} metalness={0.6} roughness={0.4} />
+        <meshStandardMaterial
+          color={isSelected ? highlightColor : ventColor}
+          metalness={0.6}
+          roughness={0.4}
+          emissive={isSelected ? highlightColor : "#000000"}
+          emissiveIntensity={isSelected ? 0.2 : 0}
+        />
       </mesh>
     </group>
   );
 }
 
+// Convert element position (wall-local mm, origin bottom-left when viewed from outside)
+// to 3D world position + rotation
+function getWallTransform(wall, el) {
+  const isVent = el.type === "ventilation";
+  const elW = isVent ? el.size * S : el.width * S;
+  const elH = isVent ? el.size * S : el.height * S;
+  const cx = el.x * S + elW / 2; // center X in wall-local coords
+  const cy = el.y * S + elH / 2; // center Y in wall-local coords
+  const offset = T / 2 + 0.002;
+
+  switch (wall) {
+    case "front":
+      // Front wall at x=L, viewed from +X direction
+      // Wall-local: left=+Z(W), right=0, bottom=0, top=H
+      return {
+        pos: [L + offset, cy, W - cx],
+        rot: [0, Math.PI / 2, 0],
+      };
+    case "back":
+      // Back wall at x=0, viewed from -X direction
+      // Wall-local: left=0, right=+Z(W), bottom=0, top=H
+      return {
+        pos: [-offset, cy, cx],
+        rot: [0, -Math.PI / 2, 0],
+      };
+    case "left":
+      // Left wall at z=0, viewed from -Z direction
+      // Wall-local: left=0, right=+X(L), bottom=0, top=H
+      return {
+        pos: [cx, cy, -offset],
+        rot: [0, 0, 0],
+      };
+    case "right":
+      // Right wall at z=W, viewed from +Z direction
+      // Wall-local: left=+X(L), right=0, bottom=0, top=H
+      return {
+        pos: [L - cx, cy, W + offset],
+        rot: [0, Math.PI, 0],
+      };
+    default:
+      return { pos: [0, 0, 0], rot: [0, 0, 0] };
+  }
+}
+
 export default function ContainerModel() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
+  const elements = useConfigStore((s) => s.elements);
+  const slopedH = slopedRoof.enabled ? H - 0.4 : H;
 
   return (
     <group position={[-L / 2, 0, -W / 2]}>
       <Floor />
-      <BackWall />
-      <LeftWall />
-      <RightWall />
-      <FrontWall />
+
+      {/* Back wall (x=0) */}
+      <ClickableWall wallName="back" position={[0, H / 2, W / 2]} size={[T, H, W]} />
+
+      {/* Left wall (z=0) */}
+      <ClickableWall wallName="left" position={[L / 2, H / 2, 0]} size={[L, H, T]} />
+
+      {/* Right wall (z=W) */}
+      <ClickableWall wallName="right" position={[L / 2, H / 2, W]} size={[L, H, T]} />
+
+      {/* Front wall (x=L) */}
+      <ClickableWall wallName="front" position={[L, slopedH / 2, W / 2]} size={[T, slopedH, W]} />
+
+      {/* Roof */}
       {slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />}
-      <VentilationCutout />
+
+      {/* Render all elements */}
+      {elements.map((el) =>
+        el.type === "door" ? (
+          <DoorMesh key={el.id} el={el} />
+        ) : (
+          <VentMesh key={el.id} el={el} />
+        )
+      )}
     </group>
   );
 }

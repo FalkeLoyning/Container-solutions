@@ -1,54 +1,14 @@
 "use client";
 
-import useConfigStore, { CONTAINER } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER, WALL_DIMS } from "../store/useConfigStore";
 
 const CL = CONTAINER.length;
 const CW = CONTAINER.width;
 const CH = CONTAINER.height;
+const SC = 0.1; // mm -> SVG units
+const PAD = 80;
 
-// SVG viewBox scale: 1mm = 0.1 SVG units
-const SC = 0.1;
-const PAD = 80; // padding for dimension lines
-
-function DimensionLine({ x1, y1, x2, y2, label, offset = 25 }) {
-  const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2;
-  const isHorizontal = Math.abs(y2 - y1) < Math.abs(x2 - x1);
-
-  const lx = isHorizontal ? mx : x1 - offset;
-  const ly = isHorizontal ? y1 - offset : my;
-
-  const ox = isHorizontal ? 0 : -offset;
-  const oy = isHorizontal ? -offset : 0;
-
-  return (
-    <g className="text-[var(--text-secondary)]">
-      {/* Extension lines */}
-      <line x1={x1} y1={y1} x2={x1 + ox} y2={y1 + oy} stroke="#475569" strokeWidth={0.5} />
-      <line x1={x2} y1={y2} x2={x2 + ox} y2={y2 + oy} stroke="#475569" strokeWidth={0.5} />
-      {/* Dimension line */}
-      <line
-        x1={x1 + ox} y1={y1 + oy}
-        x2={x2 + ox} y2={y2 + oy}
-        stroke="#94a3b8"
-        strokeWidth={0.8}
-        markerStart="url(#arrow)"
-        markerEnd="url(#arrow)"
-      />
-      {/* Label */}
-      <text
-        x={lx + ox}
-        y={ly + oy - 4}
-        fill="#e2e8f0"
-        fontSize={10}
-        textAnchor="middle"
-        dominantBaseline="auto"
-      >
-        {label}
-      </text>
-    </g>
-  );
-}
+const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre" };
 
 function ArrowMarker() {
   return (
@@ -60,9 +20,165 @@ function ArrowMarker() {
   );
 }
 
-function TopView({ door, ventilation }) {
+function DimensionLine({ x1, y1, x2, y2, label, offset = 25 }) {
+  const isHorizontal = Math.abs(y2 - y1) < Math.abs(x2 - x1);
+  const ox = isHorizontal ? 0 : -offset;
+  const oy = isHorizontal ? -offset : 0;
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+
+  return (
+    <g>
+      <line x1={x1} y1={y1} x2={x1 + ox} y2={y1 + oy} stroke="#475569" strokeWidth={0.5} />
+      <line x1={x2} y1={y2} x2={x2 + ox} y2={y2 + oy} stroke="#475569" strokeWidth={0.5} />
+      <line
+        x1={x1 + ox} y1={y1 + oy}
+        x2={x2 + ox} y2={y2 + oy}
+        stroke="#94a3b8" strokeWidth={0.8}
+        markerStart="url(#arrow)" markerEnd="url(#arrow)"
+      />
+      <text
+        x={mx + ox} y={my + oy - 4}
+        fill="#e2e8f0" fontSize={10} textAnchor="middle"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
+// Renders elements on a specific wall in a 2D view
+function WallElements({ elements, wallName, viewW, viewH, flip = false }) {
+  const wallEls = elements.filter((e) => e.wall === wallName);
+
+  return wallEls.map((el) => {
+    const x = flip ? viewW - el.x * SC : el.x * SC;
+    const y = viewH - el.y * SC; // flip Y for SVG (SVG Y goes down)
+
+    if (el.type === "door") {
+      const w = el.width * SC;
+      const h = el.height * SC;
+      return (
+        <g key={el.id}>
+          <rect
+            x={flip ? x - w : x}
+            y={y - h}
+            width={w}
+            height={h}
+            fill="#92400e"
+            fillOpacity={0.3}
+            stroke="#b45309"
+            strokeWidth={1.5}
+          />
+          <text
+            x={flip ? x - w / 2 : x + w / 2}
+            y={y - h / 2}
+            fill="#e2e8f0"
+            fontSize={7}
+            textAnchor="middle"
+            dominantBaseline="middle"
+          >
+            D#{el.id}
+          </text>
+        </g>
+      );
+    }
+    // ventilation
+    const sz = el.size * SC;
+    if (el.shape === "circle") {
+      return (
+        <g key={el.id}>
+          <circle
+            cx={flip ? x - sz / 2 : x + sz / 2}
+            cy={y - sz / 2}
+            r={sz / 2}
+            fill="none"
+            stroke="#60a5fa"
+            strokeWidth={1.5}
+          />
+          <text
+            x={flip ? x - sz / 2 : x + sz / 2}
+            y={y - sz / 2}
+            fill="#e2e8f0"
+            fontSize={6}
+            textAnchor="middle"
+            dominantBaseline="middle"
+          >
+            V#{el.id}
+          </text>
+        </g>
+      );
+    }
+    return (
+      <g key={el.id}>
+        <rect
+          x={flip ? x - sz : x}
+          y={y - sz}
+          width={sz}
+          height={sz}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={1.5}
+        />
+        <text
+          x={flip ? x - sz / 2 : x + sz / 2}
+          y={y - sz / 2}
+          fill="#e2e8f0"
+          fontSize={6}
+          textAnchor="middle"
+          dominantBaseline="middle"
+        >
+          V#{el.id}
+        </text>
+      </g>
+    );
+  });
+}
+
+function WallView({ title, wallName, wallW, wallH, elements, slopedRoof }) {
+  const w = wallW * SC;
+  const h = wallH * SC;
+  const isFront = wallName === "front";
+  const drop = slopedRoof && isFront ? 400 * SC : 0;
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-[var(--accent)] mb-2">{title}</h3>
+      <svg
+        viewBox={`${-PAD} ${-PAD} ${w + PAD * 2} ${h + PAD * 2}`}
+        className="w-full bg-[var(--bg-primary)] rounded-lg border border-[var(--border)]"
+        style={{ maxHeight: 260 }}
+      >
+        <ArrowMarker />
+        <rect x={0} y={drop} width={w} height={h - drop} fill="none" stroke="#94a3b8" strokeWidth={3} />
+
+        <WallElements elements={elements} wallName={wallName} viewW={w} viewH={h} />
+
+        {/* Dimensions */}
+        <DimensionLine x1={0} y1={h} x2={w} y2={h} label={`${wallW} mm`} offset={30} />
+        <DimensionLine x1={0} y1={drop} x2={0} y2={h} label={`${wallH - (slopedRoof && isFront ? 400 : 0)} mm`} offset={30} />
+
+        {/* Origin marker */}
+        <circle cx={0} cy={h} r={3} fill="#34d399" />
+        <text x={5} y={h - 5} fill="#34d399" fontSize={8}>Origo</text>
+
+        <text x={w / 2} y={-PAD / 2 + 10} fill="#475569" fontSize={10} textAnchor="middle">
+          {WALL_LABELS[wallName]} vegg
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function TopView({ elements, slopedRoof }) {
   const w = CL * SC;
   const h = CW * SC;
+
+  // For top view we show elements on all walls projected
+  const frontEls = elements.filter((e) => e.wall === "front");
+  const backEls = elements.filter((e) => e.wall === "back");
+  const leftEls = elements.filter((e) => e.wall === "left");
+  const rightEls = elements.filter((e) => e.wall === "right");
 
   return (
     <div>
@@ -70,183 +186,86 @@ function TopView({ door, ventilation }) {
       <svg
         viewBox={`${-PAD} ${-PAD} ${w + PAD * 2} ${h + PAD * 2}`}
         className="w-full bg-[var(--bg-primary)] rounded-lg border border-[var(--border)]"
-        style={{ maxHeight: 300 }}
+        style={{ maxHeight: 200 }}
       >
         <ArrowMarker />
-
-        {/* Container outline */}
-        <rect x={0} y={0} width={w} height={h} fill="none" stroke="#6b7280" strokeWidth={2} />
-
-        {/* Container walls (thick lines) */}
         <rect x={0} y={0} width={w} height={h} fill="none" stroke="#94a3b8" strokeWidth={3} />
 
-        {/* Door on front wall (right side in top view = x=length) */}
-        {door.enabled && (
+        {/* Front wall elements (at x=L, shown at right side) */}
+        {frontEls.map((el) => (
           <rect
-            x={w - 2}
-            y={door.x * SC}
-            width={4}
-            height={door.width * SC}
-            fill="#92400e"
-            stroke="#b45309"
-            strokeWidth={1}
+            key={el.id}
+            x={w - 4}
+            y={el.x * SC}
+            width={6}
+            height={(el.type === "door" ? el.width : el.size) * SC}
+            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            fillOpacity={0.6}
           />
-        )}
+        ))}
 
-        {/* Ventilation on right wall (y=width side) */}
-        {ventilation.enabled && (
-          <>
-            {ventilation.shape === "circle" ? (
-              <circle
-                cx={ventilation.x * SC + (ventilation.size * SC) / 2}
-                cy={h}
-                r={ventilation.size * SC / 2}
-                fill="none"
-                stroke="#60a5fa"
-                strokeWidth={1.5}
-              />
-            ) : (
-              <rect
-                x={ventilation.x * SC}
-                y={h - ventilation.size * SC / 2}
-                width={ventilation.size * SC}
-                height={ventilation.size * SC / 2}
-                fill="none"
-                stroke="#60a5fa"
-                strokeWidth={1.5}
-              />
-            )}
-          </>
-        )}
-
-        {/* Dimension: Length */}
-        <DimensionLine
-          x1={0} y1={h} x2={w} y2={h}
-          label={`${CL} mm`}
-          offset={30}
-        />
-        {/* Dimension: Width */}
-        <DimensionLine
-          x1={0} y1={0} x2={0} y2={h}
-          label={`${CW} mm`}
-          offset={30}
-        />
-
-        {/* Labels */}
-        <text x={w / 2} y={h / 2} fill="#475569" fontSize={12} textAnchor="middle">
-          TOPP
-        </text>
-        <text x={w + 10} y={h / 2} fill="#6b7280" fontSize={8} textAnchor="start">
-          Front
-        </text>
-        <text x={-10} y={h / 2} fill="#6b7280" fontSize={8} textAnchor="end">
-          Bak
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-function SideView({ door, ventilation, slopedRoof }) {
-  const w = CL * SC;
-  const h = CH * SC;
-  const drop = slopedRoof.enabled ? 400 * SC : 0;
-
-  return (
-    <div>
-      <h3 className="text-sm font-semibold text-[var(--accent)] mb-2">Side-visning (Side View)</h3>
-      <svg
-        viewBox={`${-PAD} ${-PAD} ${w + PAD * 2} ${h + PAD * 2}`}
-        className="w-full bg-[var(--bg-primary)] rounded-lg border border-[var(--border)]"
-        style={{ maxHeight: 300 }}
-      >
-        <ArrowMarker />
-
-        {/* Container outline */}
-        <polygon
-          points={`0,0 ${w},${drop} ${w},${h} 0,${h}`}
-          fill="none"
-          stroke="#94a3b8"
-          strokeWidth={3}
-        />
-
-        {/* Door on front wall */}
-        {door.enabled && (
+        {/* Back wall elements (at x=0, shown at left side) */}
+        {backEls.map((el) => (
           <rect
-            x={w - door.width * SC / 2 - 2}
-            y={h - door.height * SC}
-            width={door.width * SC / 2}
-            height={door.height * SC}
-            fill="#92400e"
-            fillOpacity={0.4}
-            stroke="#b45309"
-            strokeWidth={1.5}
+            key={el.id}
+            x={-2}
+            y={el.x * SC}
+            width={6}
+            height={(el.type === "door" ? el.width : el.size) * SC}
+            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            fillOpacity={0.6}
           />
-        )}
+        ))}
 
-        {/* Ventilation on side wall */}
-        {ventilation.enabled && (
-          <>
-            {ventilation.shape === "circle" ? (
-              <circle
-                cx={ventilation.x * SC + (ventilation.size * SC) / 2}
-                cy={h - ventilation.y * SC - (ventilation.size * SC) / 2}
-                r={ventilation.size * SC / 2}
-                fill="none"
-                stroke="#60a5fa"
-                strokeWidth={1.5}
-                strokeDasharray="4 2"
-              />
-            ) : (
-              <rect
-                x={ventilation.x * SC}
-                y={h - ventilation.y * SC - ventilation.size * SC}
-                width={ventilation.size * SC}
-                height={ventilation.size * SC}
-                fill="none"
-                stroke="#60a5fa"
-                strokeWidth={1.5}
-                strokeDasharray="4 2"
-              />
-            )}
-          </>
-        )}
-
-        {/* Dimension: Length */}
-        <DimensionLine
-          x1={0} y1={h} x2={w} y2={h}
-          label={`${CL} mm`}
-          offset={30}
-        />
-        {/* Dimension: Height back */}
-        <DimensionLine
-          x1={0} y1={0} x2={0} y2={h}
-          label={`${CH} mm`}
-          offset={30}
-        />
-        {/* Dimension: Height front (if sloped) */}
-        {slopedRoof.enabled && (
-          <DimensionLine
-            x1={w} y1={drop} x2={w} y2={h}
-            label={`${CH - 400} mm`}
-            offset={-40}
+        {/* Left wall elements (at z=0, shown at top) */}
+        {leftEls.map((el) => (
+          <rect
+            key={el.id}
+            x={el.x * SC}
+            y={-2}
+            width={(el.type === "door" ? el.width : el.size) * SC}
+            height={6}
+            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            fillOpacity={0.6}
           />
-        )}
+        ))}
 
-        {/* Labels */}
-        <text x={w / 2} y={h / 2} fill="#475569" fontSize={12} textAnchor="middle">
-          SIDE
-        </text>
+        {/* Right wall elements (at z=W, shown at bottom) */}
+        {rightEls.map((el) => (
+          <rect
+            key={el.id}
+            x={(CL - el.x) * SC - (el.type === "door" ? el.width : el.size) * SC}
+            y={h - 4}
+            width={(el.type === "door" ? el.width : el.size) * SC}
+            height={6}
+            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            fillOpacity={0.6}
+          />
+        ))}
+
+        <DimensionLine x1={0} y1={h} x2={w} y2={h} label={`${CL} mm`} offset={30} />
+        <DimensionLine x1={0} y1={0} x2={0} y2={h} label={`${CW} mm`} offset={30} />
+
+        {/* Wall labels */}
+        <text x={w + 15} y={h / 2} fill="#6b7280" fontSize={8} textAnchor="start">Front</text>
+        <text x={-15} y={h / 2} fill="#6b7280" fontSize={8} textAnchor="end">Bak</text>
+        <text x={w / 2} y={-10} fill="#6b7280" fontSize={8} textAnchor="middle">Venstre</text>
+        <text x={w / 2} y={h + 20} fill="#6b7280" fontSize={8} textAnchor="middle">Høyre</text>
       </svg>
     </div>
   );
 }
 
 export default function DrawingPreview() {
-  const door = useConfigStore((s) => s.door);
-  const ventilation = useConfigStore((s) => s.ventilation);
+  const elements = useConfigStore((s) => s.elements);
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
+
+  const doors = elements.filter((e) => e.type === "door");
+  const vents = elements.filter((e) => e.type === "ventilation");
+
+  // Get unique walls that have elements
+  const wallsWithElements = [...new Set(elements.map((e) => e.wall))];
 
   return (
     <div
@@ -254,14 +273,14 @@ export default function DrawingPreview() {
       onClick={() => setShowDrawing(false)}
     >
       <div
-        className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 max-w-4xl w-[90vw] max-h-[90vh] overflow-y-auto space-y-6"
+        className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto space-y-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold">📐 Produksjonstegninger</h2>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              20ft ISO Container – {CL} × {CW} × {CH} mm
+              20ft ISO Container – {CL} × {CW} × {CH} mm · {elements.length} elementer
             </p>
           </div>
           <button
@@ -273,30 +292,32 @@ export default function DrawingPreview() {
           </button>
         </div>
 
+        {/* Top view */}
+        <TopView elements={elements} slopedRoof={slopedRoof.enabled} />
+
+        {/* Individual wall views */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TopView door={door} ventilation={ventilation} />
-          <SideView door={door} ventilation={ventilation} slopedRoof={slopedRoof} />
+          {wallsWithElements.map((wall) => (
+            <WallView
+              key={wall}
+              title={`${WALL_LABELS[wall]} vegg`}
+              wallName={wall}
+              wallW={WALL_DIMS[wall].w}
+              wallH={WALL_DIMS[wall].h}
+              elements={elements}
+              slopedRoof={slopedRoof.enabled}
+            />
+          ))}
         </div>
 
+        {/* Specs table */}
         <div className="bg-[var(--bg-primary)] rounded-lg p-4 text-sm space-y-2 border border-[var(--border)]">
           <h4 className="font-semibold text-[var(--accent)]">Spesifikasjoner</h4>
-          <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs">
             <span className="text-[var(--text-secondary)]">Container type:</span>
             <span>20ft ISO Standard</span>
             <span className="text-[var(--text-secondary)]">Ytre mål:</span>
             <span>{CL} × {CW} × {CH} mm</span>
-            {door.enabled && (
-              <>
-                <span className="text-[var(--text-secondary)]">Dør:</span>
-                <span>{door.width} × {door.height} mm @ ({door.x}, {door.y})</span>
-              </>
-            )}
-            {ventilation.enabled && (
-              <>
-                <span className="text-[var(--text-secondary)]">Ventilasjon:</span>
-                <span>{ventilation.shape === "circle" ? "Ø" : ""}{ventilation.size} mm @ ({ventilation.x}, {ventilation.y})</span>
-              </>
-            )}
             {slopedRoof.enabled && (
               <>
                 <span className="text-[var(--text-secondary)]">Tak:</span>
@@ -304,10 +325,34 @@ export default function DrawingPreview() {
               </>
             )}
           </div>
+
+          {doors.length > 0 && (
+            <div className="mt-2">
+              <h5 className="text-xs font-semibold text-[var(--text-secondary)] mb-1">Dører ({doors.length})</h5>
+              {doors.map((d) => (
+                <div key={d.id} className="text-xs grid grid-cols-2 gap-x-8">
+                  <span className="text-[var(--text-secondary)]">#{d.id} ({WALL_LABELS[d.wall]}):</span>
+                  <span>{d.width} × {d.height} mm @ ({d.x}, {d.y})</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {vents.length > 0 && (
+            <div className="mt-2">
+              <h5 className="text-xs font-semibold text-[var(--text-secondary)] mb-1">Utsparringer ({vents.length})</h5>
+              {vents.map((v) => (
+                <div key={v.id} className="text-xs grid grid-cols-2 gap-x-8">
+                  <span className="text-[var(--text-secondary)]">#{v.id} ({WALL_LABELS[v.wall]}):</span>
+                  <span>{v.shape === "circle" ? "Ø" : "□"}{v.size} mm @ ({v.x}, {v.y})</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <p className="text-xs text-[var(--text-secondary)] text-center italic">
-          Mock tegning – ikke for produksjon
+          Mock tegning – ikke for produksjon · Origo = nederste venstre hjørne per vegg
         </p>
       </div>
     </div>

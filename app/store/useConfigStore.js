@@ -8,37 +8,97 @@ export const CONTAINER = {
   wallThickness: 50,
 };
 
+// Wall dimensions: width × height (local coords, origin = bottom-left)
+export const WALL_DIMS = {
+  front: { w: CONTAINER.width, h: CONTAINER.height },
+  back:  { w: CONTAINER.width, h: CONTAINER.height },
+  left:  { w: CONTAINER.length, h: CONTAINER.height },
+  right: { w: CONTAINER.length, h: CONTAINER.height },
+};
+
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
-function clampDoor(door) {
-  const w = clamp(door.width, 400, CONTAINER.width);
-  const h = clamp(door.height, 500, CONTAINER.height);
-  const x = clamp(door.x, 0, CONTAINER.width - w);
-  const y = clamp(door.y, 0, CONTAINER.height - h);
-  return { ...door, x, y, width: w, height: h };
+function clampElement(el) {
+  const wallDim = WALL_DIMS[el.wall] || { w: 6058, h: 2591 };
+  if (el.type === "door") {
+    const w = clamp(el.width, 300, wallDim.w);
+    const h = clamp(el.height, 400, wallDim.h);
+    const x = clamp(el.x, 0, wallDim.w - w);
+    const y = clamp(el.y, 0, wallDim.h - h);
+    return { ...el, x, y, width: w, height: h };
+  }
+  // ventilation
+  const size = clamp(el.size, 50, Math.min(wallDim.w, wallDim.h));
+  const x = clamp(el.x, 0, wallDim.w - size);
+  const y = clamp(el.y, 0, wallDim.h - size);
+  return { ...el, x, y, size };
 }
 
-function clampVent(vent) {
-  const size = clamp(vent.size, 100, 600);
-  const x = clamp(vent.x, 0, CONTAINER.length - size);
-  const y = clamp(vent.y, 0, CONTAINER.height - size);
-  return { ...vent, x, y, size };
-}
+let nextId = 1;
 
-const useConfigStore = create((set) => ({
-  door: { enabled: false, x: 700, y: 0, width: 1000, height: 2100 },
-  ventilation: { enabled: false, x: 3000, y: 1500, size: 300, shape: "circle" },
+const useConfigStore = create((set, get) => ({
+  // Array of placed elements
+  elements: [],
+
+  // Placement mode: null | "pending" (waiting for wall click)
+  placementMode: null,
+
+  // Which element is selected for editing
+  selectedId: null,
+
+  // Global toggles
   slopedRoof: { enabled: false },
   aluminumFloor: { enabled: false },
+
   showDrawing: false,
 
-  updateDoor: (partial) =>
-    set((s) => ({ door: clampDoor({ ...s.door, ...partial }) })),
+  // Start placement mode
+  startPlacement: () => set({ placementMode: "pending", selectedId: null }),
+  cancelPlacement: () => set({ placementMode: null }),
 
-  updateVentilation: (partial) =>
-    set((s) => ({ ventilation: clampVent({ ...s.ventilation, ...partial }) })),
+  // Called when user clicks a wall face in 3D — adds element with defaults
+  placeElement: (wall, type, clickX, clickY) => {
+    const id = nextId++;
+    const base = { id, wall };
+    let el;
+    if (type === "door") {
+      el = clampElement({
+        ...base, type: "door",
+        x: Math.round(clickX), y: 0,
+        width: 1000, height: 2100,
+      });
+    } else {
+      el = clampElement({
+        ...base, type: "ventilation",
+        x: Math.round(clickX), y: Math.round(clickY),
+        size: 300, shape: "circle",
+      });
+    }
+    set((s) => ({
+      elements: [...s.elements, el],
+      placementMode: null,
+      selectedId: id,
+    }));
+  },
+
+  // Update an existing element
+  updateElement: (id, partial) =>
+    set((s) => ({
+      elements: s.elements.map((el) =>
+        el.id === id ? clampElement({ ...el, ...partial }) : el
+      ),
+    })),
+
+  // Remove element
+  removeElement: (id) =>
+    set((s) => ({
+      elements: s.elements.filter((el) => el.id !== id),
+      selectedId: s.selectedId === id ? null : s.selectedId,
+    })),
+
+  selectElement: (id) => set({ selectedId: id, placementMode: null }),
 
   toggleSlopedRoof: () =>
     set((s) => ({ slopedRoof: { enabled: !s.slopedRoof.enabled } })),

@@ -2,6 +2,8 @@
 
 import useConfigStore, { CONTAINER } from "../store/useConfigStore";
 
+const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre" };
+
 function FeatureRow({ label, values }) {
   return (
     <div className="bg-[var(--bg-primary)] rounded-lg p-3 space-y-1">
@@ -17,50 +19,52 @@ function FeatureRow({ label, values }) {
 }
 
 export default function ActiveFeatures() {
-  const door = useConfigStore((s) => s.door);
-  const ventilation = useConfigStore((s) => s.ventilation);
+  const elements = useConfigStore((s) => s.elements);
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
 
-  const anyActive = door.enabled || ventilation.enabled || slopedRoof.enabled || aluminumFloor.enabled;
+  const doors = elements.filter((e) => e.type === "door");
+  const vents = elements.filter((e) => e.type === "ventilation");
+
+  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled;
 
   return (
     <aside className="w-72 min-w-72 h-full overflow-y-auto p-4 space-y-4 border-l border-[var(--border)]">
-      <h2 className="text-lg font-bold">📋 Aktive Features</h2>
+      <h2 className="text-lg font-bold">📋 Oppsummering</h2>
 
       {!anyActive && (
         <p className="text-sm text-[var(--text-secondary)] italic">
-          Ingen features aktivert. Bruk panelet til venstre for å konfigurere containeren.
+          Ingen features konfigurert ennå.
         </p>
       )}
 
-      {door.enabled && (
+      {doors.map((el) => (
         <FeatureRow
-          label="🚪 Dør"
+          key={el.id}
+          label={`🚪 Dør #${el.id}`}
           values={[
-            ["Posisjon X", `${door.x} mm`],
-            ["Posisjon Y", `${door.y} mm`],
-            ["Bredde", `${door.width} mm`],
-            ["Høyde", `${door.height} mm`],
+            ["Vegg", WALL_LABELS[el.wall]],
+            ["Posisjon", `(${el.x}, ${el.y}) mm`],
+            ["Bredde × Høyde", `${el.width} × ${el.height} mm`],
           ]}
         />
-      )}
+      ))}
 
-      {ventilation.enabled && (
+      {vents.map((el) => (
         <FeatureRow
-          label="🌀 Ventilasjon"
+          key={el.id}
+          label={`🌀 Ventilasjon #${el.id}`}
           values={[
-            ["Posisjon X", `${ventilation.x} mm`],
-            ["Posisjon Y", `${ventilation.y} mm`],
-            ["Størrelse", `${ventilation.size} mm`],
-            ["Form", ventilation.shape === "circle" ? "Sirkel" : "Firkant"],
+            ["Vegg", WALL_LABELS[el.wall]],
+            ["Posisjon", `(${el.x}, ${el.y}) mm`],
+            ["Størrelse", `${el.shape === "circle" ? "Ø" : "□"}${el.size} mm`],
           ]}
         />
-      )}
+      ))}
 
       {slopedRoof.enabled && (
-        <FeatureRow label="📐 Skråtak" values={[["Type", "Bak → front, 400mm fall"]]} />
+        <FeatureRow label="📐 Skråtak" values={[["Type", "400mm fall mot front"]]} />
       )}
 
       {aluminumFloor.enabled && (
@@ -71,19 +75,25 @@ export default function ActiveFeatures() {
         <div className="text-xs text-[var(--text-secondary)] mb-3 space-y-1">
           <div className="flex justify-between">
             <span>Container</span>
-            <span>20ft ISO Standard</span>
+            <span>20ft ISO</span>
           </div>
           <div className="flex justify-between">
             <span>Mål</span>
             <span>{CONTAINER.length} × {CONTAINER.width} × {CONTAINER.height}</span>
           </div>
+          <div className="flex justify-between">
+            <span>Elementer</span>
+            <span>{elements.length} stk</span>
+          </div>
         </div>
 
         <button
           onClick={() => setShowDrawing(true)}
+          disabled={!anyActive}
           className="w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all
             bg-[var(--accent)] text-[var(--bg-primary)] hover:bg-[var(--accent-hover)]
-            hover:shadow-lg hover:shadow-[var(--accent)]/25 active:scale-[0.98]"
+            hover:shadow-lg hover:shadow-[var(--accent)]/25 active:scale-[0.98]
+            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
         >
           📐 Generer Tegninger
         </button>
