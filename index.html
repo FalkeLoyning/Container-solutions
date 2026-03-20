@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Container Solutions</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>🐳 Container Solutions</h1>
+        <p class="subtitle">Mock Frontend – Prototype & Test Ideas</p>
+      </header>
+
+      <main>
+        <section class="dashboard">
+          <div class="card">
+            <h3>Running Containers</h3>
+            <span class="metric" id="running-count">0</span>
+          </div>
+          <div class="card">
+            <h3>Stopped</h3>
+            <span class="metric" id="stopped-count">0</span>
+          </div>
+          <div class="card">
+            <h3>Images</h3>
+            <span class="metric" id="images-count">0</span>
+          </div>
+          <div class="card">
+            <h3>Networks</h3>
+            <span class="metric" id="networks-count">0</span>
+          </div>
+        </section>
+
+        <section class="container-list">
+          <h2>Containers</h2>
+          <div class="actions">
+            <button id="btn-add">+ New Container</button>
+            <button id="btn-refresh">↻ Refresh</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Image</th>
+                <th>Status</th>
+                <th>Port</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="container-table-body">
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="new-container-dialog">
+      <form method="dialog" id="new-container-form">
+        <h2>Create Container</h2>
+        <label>
+          Name
+          <input type="text" id="input-name" placeholder="my-app" required />
+        </label>
+        <label>
+          Image
+          <input type="text" id="input-image" placeholder="nginx:latest" required />
+        </label>
+        <label>
+          Port
+          <input type="text" id="input-port" placeholder="8080:80" />
+        </label>
+        <div class="dialog-actions">
+          <button type="button" id="btn-cancel">Cancel</button>
+          <button type="submit">Create</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
