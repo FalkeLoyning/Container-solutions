@@ -1,6 +1,6 @@
 "use client";
 
-import useConfigStore, { CONTAINER, WALL_DIMS } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER, WALL_DIMS, RAL_COLORS } from "../store/useConfigStore";
 
 const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre" };
 
@@ -89,6 +89,21 @@ function ElementEditor({ el }) {
         min={0}
         max={wallDim.h - el.height}
       />
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => updateElement(el.id, { x: Math.round((wallDim.w - el.width) / 2) })}
+          className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+        >
+          ↔ Sentrer X
+        </button>
+        <button
+          onClick={() => updateElement(el.id, { y: Math.round((wallDim.h - el.height) / 2) })}
+          className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+        >
+          ↕ Sentrer Y
+        </button>
+      </div>
 
       {el.type === "door" && (
         <>
@@ -195,6 +210,9 @@ export default function Sidebar() {
   const cancelPlacement = useConfigStore((s) => s.cancelPlacement);
   const toggleSlopedRoof = useConfigStore((s) => s.toggleSlopedRoof);
   const toggleAluminumFloor = useConfigStore((s) => s.toggleAluminumFloor);
+  const containerColor = useConfigStore((s) => s.containerColor);
+  const containerRal = useConfigStore((s) => s.containerRal);
+  const setContainerColor = useConfigStore((s) => s.setContainerColor);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
@@ -268,6 +286,43 @@ export default function Sidebar() {
           Trykk knappen over for å starte.
         </p>
       )}
+
+      {/* Container color */}
+      <div className="pt-4 border-t border-[var(--border)] space-y-2">
+        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          🎨 Container farge
+        </h3>
+        {containerRal ? (
+          <p className="text-xs text-[var(--text-primary)]">
+            RAL {containerRal} – {RAL_COLORS.find((r) => r.code === containerRal)?.name}
+          </p>
+        ) : (
+          <p className="text-xs text-[var(--text-secondary)] italic">Standard stålgrå</p>
+        )}
+        <div className="grid grid-cols-5 gap-1.5">
+          {RAL_COLORS.map((ral) => (
+            <button
+              key={ral.code}
+              onClick={() => setContainerColor(ral.code, ral.hex)}
+              title={`RAL ${ral.code} – ${ral.name}`}
+              className={`aspect-square rounded-lg border-2 transition-all ${
+                containerRal === ral.code
+                  ? "border-[var(--accent)] scale-110 shadow-md"
+                  : "border-transparent hover:border-[var(--border-hover)]"
+              }`}
+              style={{ backgroundColor: ral.hex }}
+            />
+          ))}
+        </div>
+        {containerRal && (
+          <button
+            onClick={() => setContainerColor(null, "#94a3b8")}
+            className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
+          >
+            ↩ Tilbakestill til standard
+          </button>
+        )}
+      </div>
 
       {/* Global options */}
       <div className="pt-4 border-t border-[var(--border)] space-y-3">

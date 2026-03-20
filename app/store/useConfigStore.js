@@ -16,6 +16,24 @@ export const WALL_DIMS = {
   right: { w: CONTAINER.length, h: CONTAINER.height },
 };
 
+export const RAL_COLORS = [
+  { code: "1015", name: "Lys elfenben", hex: "#E6D2B5" },
+  { code: "1021", name: "Rapsgul", hex: "#F0CA00" },
+  { code: "2004", name: "Ren oransje", hex: "#E25303" },
+  { code: "3000", name: "Flammrød", hex: "#A72920" },
+  { code: "5010", name: "Ensianblå", hex: "#004F7C" },
+  { code: "5015", name: "Himmelblå", hex: "#007CB0" },
+  { code: "6005", name: "Mosegrønn", hex: "#0F4336" },
+  { code: "7001", name: "Sølvgrå", hex: "#8C969D" },
+  { code: "7016", name: "Antrasittgrå", hex: "#383E42" },
+  { code: "7035", name: "Lysgrå", hex: "#C5C7C4" },
+  { code: "7042", name: "Trafikkgrå", hex: "#8F9695" },
+  { code: "9002", name: "Gråhvit", hex: "#D7D5CB" },
+  { code: "9003", name: "Signalhvit", hex: "#ECECE7" },
+  { code: "9005", name: "Dyp sort", hex: "#0E0E10" },
+  { code: "9010", name: "Ren hvit", hex: "#F1ECE1" },
+];
+
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
@@ -54,6 +72,9 @@ const useConfigStore = create((set, get) => ({
   aluminumFloor: { enabled: false },
 
   showDrawing: false,
+
+  containerColor: "#94a3b8",
+  containerRal: null,
 
   // Start placement mode
   startPlacement: () => set({ placementMode: "pending", selectedId: null }),
@@ -108,6 +129,8 @@ const useConfigStore = create((set, get) => ({
     set((s) => ({ aluminumFloor: { enabled: !s.aluminumFloor.enabled } })),
 
   setShowDrawing: (v) => set({ showDrawing: v }),
+
+  setContainerColor: (ral, hex) => set({ containerRal: ral, containerColor: hex }),
 }));
 
 export default useConfigStore;

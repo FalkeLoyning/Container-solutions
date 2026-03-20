@@ -27,6 +27,7 @@ function WallClickMenu({ position, onSelect, onCancel }) {
 // Clickable wall component
 function ClickableWall({ wallName, position, size, rotation, children }) {
   const placementMode = useConfigStore((s) => s.placementMode);
+  const containerColor = useConfigStore((s) => s.containerColor);
   const isPlacing = placementMode === "pending";
 
   return (
@@ -38,7 +39,7 @@ function ClickableWall({ wallName, position, size, rotation, children }) {
     >
       <boxGeometry args={size} />
       <meshStandardMaterial
-        color={isPlacing ? "#b0bec5" : steelColor}
+        color={isPlacing ? "#b0bec5" : containerColor}
         metalness={0.3}
         roughness={0.55}
         emissive={isPlacing ? highlightColor : "#000000"}
@@ -189,14 +190,14 @@ function getWallTransform(wall, el) {
       // Wall-local: left=0, right=+X(L), bottom=0, top=H
       return {
         pos: [cx, cy, -offset],
-        rot: [0, 0, 0],
+        rot: [0, Math.PI, 0],
       };
     case "right":
       // Right wall at z=W, viewed from +Z direction
       // Wall-local: left=+X(L), right=0, bottom=0, top=H
       return {
         pos: [L - cx, cy, W + offset],
-        rot: [0, Math.PI, 0],
+        rot: [0, 0, 0],
       };
     default:
       return { pos: [0, 0, 0], rot: [0, 0, 0] };

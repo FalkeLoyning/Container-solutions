@@ -1,6 +1,6 @@
 "use client";
 
-import useConfigStore, { CONTAINER } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER, RAL_COLORS } from "../store/useConfigStore";
 
 const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre" };
 
@@ -22,12 +22,13 @@ export default function ActiveFeatures() {
   const elements = useConfigStore((s) => s.elements);
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
+  const containerRal = useConfigStore((s) => s.containerRal);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
-  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled;
+  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal;
 
   return (
     <aside className="w-72 min-w-72 h-full overflow-y-auto p-4 space-y-4 border-l border-[var(--border)]">
@@ -70,6 +71,16 @@ export default function ActiveFeatures() {
 
       {aluminumFloor.enabled && (
         <FeatureRow label="🪵 Aluminium gulv" values={[["Materiale", "Aluminium"]]} />
+      )}
+
+      {containerRal && (
+        <FeatureRow
+          label="🎨 Container farge"
+          values={[
+            ["RAL", containerRal],
+            ["Farge", RAL_COLORS.find((r) => r.code === containerRal)?.name || "Egendefinert"],
+          ]}
+        />
       )}
 
       <div className="pt-4 border-t border-[var(--border)]">
