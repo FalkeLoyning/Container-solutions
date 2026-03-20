@@ -320,10 +320,10 @@ function Cladding({ cladding, elements }) {
   const step = plankSize + gap;
 
   const walls = [
-    { name: "back",  len: W, h: H, pos: (xc, yc) => [-off,    yc, xc],   boxArgs: (w, h) => [depth, h, w] },
-    { name: "front", len: W, h: H, pos: (xc, yc) => [L + off, yc, xc],   boxArgs: (w, h) => [depth, h, w] },
-    { name: "left",  len: L, h: H, pos: (xc, yc) => [xc,      yc, -off], boxArgs: (w, h) => [w, h, depth] },
-    { name: "right", len: L, h: H, pos: (xc, yc) => [xc,      yc, W + off], boxArgs: (w, h) => [w, h, depth] },
+    { name: "back",  len: W, h: H, pos: (xc, yc) => [-off,        yc, xc],       boxArgs: (w, h) => [depth, h, w] },
+    { name: "front", len: W, h: H, pos: (xc, yc) => [L + off,     yc, W - xc],   boxArgs: (w, h) => [depth, h, w] },
+    { name: "left",  len: L, h: H, pos: (xc, yc) => [xc,          yc, -off],      boxArgs: (w, h) => [w, h, depth] },
+    { name: "right", len: L, h: H, pos: (xc, yc) => [L - xc,     yc, W + off],   boxArgs: (w, h) => [w, h, depth] },
   ];
 
   const meshes = [];
