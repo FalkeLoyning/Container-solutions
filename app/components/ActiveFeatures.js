@@ -18,7 +18,7 @@ function FeatureRow({ label, values }) {
   );
 }
 
-export default function ActiveFeatures() {
+export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn }) {
   const elements = useConfigStore((s) => s.elements);
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
@@ -35,7 +35,7 @@ export default function ActiveFeatures() {
   const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal || cladding.enabled || insulation.enabled;
 
   return (
-    <aside className="w-72 min-w-72 h-full overflow-y-auto p-4 space-y-4 border-l border-[var(--border)]">
+    <aside className="fixed top-0 right-0 bottom-0 w-72 overflow-y-auto p-4 space-y-4 border-l border-[var(--border)] bg-[var(--bg-card)] z-20">
       <h2 className="text-lg font-bold">📋 Oppsummering</h2>
 
       {!anyActive && (
@@ -141,6 +141,25 @@ export default function ActiveFeatures() {
         >
           📐 Generer Tegninger
         </button>
+
+        {loggedIn && (
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={onSaveProject}
+              className="flex-1 py-2 px-3 rounded-xl font-semibold text-xs transition-all
+                border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)]/10 cursor-pointer"
+            >
+              💾 Lagre prosjekt
+            </button>
+            <button
+              onClick={onLoadProject}
+              className="flex-1 py-2 px-3 rounded-xl font-semibold text-xs transition-all
+                border border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] cursor-pointer"
+            >
+              📂 Mine prosjekter
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

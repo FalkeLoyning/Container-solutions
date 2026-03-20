@@ -29,6 +29,10 @@ const aluminumColor = "#d4d4d8";
 const highlightColor = "#0284c7";
 const holeColor = "#0f172a";
 
+// HUP frame profile dimensions (mm)
+const HUP_W = 50;   // profile face width (visible from outside, flush with wall)
+const HUP_D = 100;  // profile depth (extends inward from wall)
+
 // Element type picker shown after clicking a wall
 function WallClickMenu({ position, onSelect, onCancel }) {
   // This is rendered as an HTML overlay, not in 3D
@@ -217,6 +221,184 @@ function SlopedRoof() {
   );
 }
 
+// Louver grille (traforist) – angled slats that block rain
+function LouverGrille({ width, height }) {
+  const slats = useMemo(() => {
+    const slatSpacing = 0.025;  // 25mm between slat centers
+    const slatThick = 0.002;   // 2mm sheet thickness
+    const slatDepth = 0.022;   // 22mm slat depth (projection)
+    const angle = -Math.PI / 4; // 45° downward tilt (blocks rain)
+    const count = Math.floor(height / slatSpacing);
+    const items = [];
+    for (let i = 0; i < count; i++) {
+      const y = -height / 2 + slatSpacing * 0.5 + i * slatSpacing;
+      items.push(
+        <mesh key={i} position={[0, y, slatDepth / 2]} rotation={[angle, 0, 0]}>
+          <boxGeometry args={[width - 0.004, slatThick, slatDepth]} />
+          <meshStandardMaterial color="#d4d4d8" metalness={0.5} roughness={0.3} />
+        </mesh>
+      );
+    }
+    return items;
+  }, [width, height]);
+
+  return <group>{slats}</group>;
+}
+
+// Exhaust pipe: Ø200mm, 400mm protrusion. Horizontal pipes get 60° angled cut.
+function ExhaustPipe({ wall }) {
+  const radius = 0.100; // Ø200mm = 100mm radius
+  const baseLen = 0.400; // 400mm base protrusion (shortest side)
+  const isVertical = wall === "roof" || wall === "floor";
+
+  // Build a single geometry: cylinder with angled cut end for horizontal pipes
+  const geometry = useMemo(() => {
+    const segments = 32;
+
+    if (isVertical) {
+      // Straight cylinder, flat ends
+      const geo = new THREE.CylinderGeometry(radius, radius, baseLen, segments, 1, false);
+      geo.rotateX(Math.PI / 2);
+      geo.translate(0, 0, baseLen / 2);
+      return geo;
+    }
+
+    // Angled cut: 60° from pipe axis means tan(60°) ≈ 1.732
+    // Bottom of pipe (y < 0) is shorter (opening), top (y > 0) is longer
+    const tanAngle = Math.tan(Math.PI / 3);
+
+    // Build custom BufferGeometry for the angled-cut cylinder
+    const positions = [];
+    const normals = [];
+    const indices = [];
+
+    // Ring at wall (z=0) and ring at cut end (z varies by angle)
+    // For each segment, two vertices: base ring and cut ring
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const x = Math.cos(theta) * radius;
+      const y = Math.sin(theta) * radius;
+
+      // Base ring at z=0 (wall face)
+      positions.push(x, y, 0);
+      normals.push(Math.cos(theta), Math.sin(theta), 0);
+
+      // Cut ring: z depends on y position (top longer, bottom shorter)
+      const z = baseLen + y * tanAngle;
+      positions.push(x, y, z);
+      normals.push(Math.cos(theta), Math.sin(theta), 0);
+    }
+
+    // Side faces: quads between base and cut rings
+    for (let i = 0; i < segments; i++) {
+      const a = i * 2;
+      const b = a + 1;
+      const c = a + 2;
+      const d = a + 3;
+      indices.push(a, b, d, a, d, c);
+    }
+
+    // Cap at cut end (triangulated fan from center)
+    const capCenterIdx = positions.length / 3;
+    // Center of the cut ellipse
+    const centerZ = baseLen; // y=0 at center → z = baseLen
+    positions.push(0, 0, centerZ);
+    // Normal of cut plane: pointing outward along the angled plane
+    const cutNx = 0, cutNy = -Math.sin(Math.PI / 3), cutNz = Math.cos(Math.PI / 3);
+    normals.push(cutNx, cutNy, cutNz);
+
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const x = Math.cos(theta) * radius;
+      const y = Math.sin(theta) * radius;
+      const z = baseLen + y * tanAngle;
+      positions.push(x, y, z);
+      normals.push(cutNx, cutNy, cutNz);
+    }
+
+    for (let i = 0; i < segments; i++) {
+      const ci = capCenterIdx;
+      const vi = capCenterIdx + 1 + i;
+      const vi2 = capCenterIdx + 2 + i;
+      indices.push(ci, vi2, vi);
+    }
+
+    // Cap at base (z=0), closed
+    const baseCenterIdx = positions.length / 3;
+    positions.push(0, 0, 0);
+    normals.push(0, 0, -1);
+
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const x = Math.cos(theta) * radius;
+      const y = Math.sin(theta) * radius;
+      positions.push(x, y, 0);
+      normals.push(0, 0, -1);
+    }
+
+    for (let i = 0; i < segments; i++) {
+      const ci = baseCenterIdx;
+      const vi = baseCenterIdx + 1 + i;
+      const vi2 = baseCenterIdx + 2 + i;
+      indices.push(ci, vi, vi2);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    geo.setIndex(indices);
+    return geo;
+  }, [radius, baseLen, isVertical]);
+
+  return (
+    <mesh geometry={geometry}>
+      <meshStandardMaterial color="#8a8a8a" metalness={0.6} roughness={0.3} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+
+// HUP frame: 4 mitered 100x50x3 box-section profiles around an opening
+// 50mm face is flush with the wall surface, 100mm depth extends inward
+function HupFrame({ innerW, innerH, isSelected }) {
+  const containerColor = useConfigStore((s) => s.containerColor);
+  const pw = HUP_W * S;  // 50mm face width
+  const pd = HUP_D * S;  // 100mm depth inward
+  const outerW = innerW + 2 * pw;
+  const outerH = innerH + 2 * pw;
+  const color = isSelected ? highlightColor : containerColor;
+  const emissive = isSelected ? highlightColor : "#000000";
+  const emissiveIntensity = isSelected ? 0.15 : 0;
+
+  // Each bar runs the full outer dimension → overlap at corners = mitered look
+  const bars = [
+    // Bottom
+    { pos: [0, -innerH / 2 - pw / 2, -pd / 2], args: [outerW, pw, pd] },
+    // Top
+    { pos: [0,  innerH / 2 + pw / 2, -pd / 2], args: [outerW, pw, pd] },
+    // Left
+    { pos: [-innerW / 2 - pw / 2, 0, -pd / 2], args: [pw, outerH, pd] },
+    // Right
+    { pos: [ innerW / 2 + pw / 2, 0, -pd / 2], args: [pw, outerH, pd] },
+  ];
+
+  return (
+    <group>
+      {bars.map((bar, i) => (
+        <mesh key={i} position={bar.pos} castShadow>
+          <boxGeometry args={bar.args} />
+          <meshStandardMaterial
+            color={color}
+            metalness={0.5}
+            roughness={0.4}
+            emissive={emissive}
+            emissiveIntensity={emissiveIntensity}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 // Render a door element on a wall
 function DoorMesh({ el }) {
   const selectedId = useConfigStore((s) => s.selectedId);
@@ -228,7 +410,7 @@ function DoorMesh({ el }) {
 
   return (
     <group userData={{ elementId: el.id, wall: el.wall }}>
-      {/* Dark cutout */}
+      {/* Dark cutout (inner opening) */}
       <mesh position={pos} rotation={rot}>
         <planeGeometry args={[w, h]} />
         <meshBasicMaterial color="#000000" />
@@ -244,6 +426,10 @@ function DoorMesh({ el }) {
           emissiveIntensity={isSelected ? 0.15 : 0}
         />
       </mesh>
+      {/* HUP 100x50x3 frame */}
+      <group position={pos} rotation={rot}>
+        <HupFrame innerW={w} innerH={h} isSelected={isSelected} />
+      </group>
     </group>
   );
 }
@@ -259,7 +445,7 @@ function VentMesh({ el }) {
 
   return (
     <group userData={{ elementId: el.id, wall: el.wall }}>
-      {/* Dark hole */}
+      {/* Dark hole (inner opening) */}
       <mesh position={pos} rotation={rot}>
         {el.shape === "circle" ? (
           <circleGeometry args={[Math.min(vw, vh) / 2, 32]} />
@@ -268,21 +454,22 @@ function VentMesh({ el }) {
         )}
         <meshBasicMaterial color={holeColor} />
       </mesh>
-      {/* Rim / frame around the hole */}
-      <mesh position={pos} rotation={rot}>
-        {el.shape === "circle" ? (
-          <ringGeometry args={[Math.min(vw, vh) / 2 - 0.008, Math.min(vw, vh) / 2 + 0.008, 32]} />
-        ) : (
-          <planeGeometry args={[vw + 0.016, vh + 0.016]} />
-        )}
-        <meshStandardMaterial
-          color={isSelected ? highlightColor : ventColor}
-          metalness={0.5}
-          roughness={0.4}
-          emissive={isSelected ? highlightColor : "#000000"}
-          emissiveIntensity={isSelected ? 0.2 : 0}
-        />
-      </mesh>
+      {/* HUP 100x50x3 frame */}
+      <group position={pos} rotation={rot}>
+        <HupFrame innerW={vw} innerH={vh} isSelected={isSelected} />
+      </group>
+      {/* Louver grille (traforist) */}
+      {el.grille && (
+        <group position={pos} rotation={rot}>
+          <LouverGrille width={vw} height={vh} />
+        </group>
+      )}
+      {/* Exhaust pipe */}
+      {el.exhaust && (
+        <group position={pos} rotation={rot}>
+          <ExhaustPipe wall={el.wall} />
+        </group>
+      )}
     </group>
   );
 }
@@ -334,13 +521,14 @@ function getWallTransform(wall, el, { L, W, H, T, F }) {
 
 // Convert element position to cladding-local rectangle (3D units)
 function elementToCladdingRect(wallName, el, { L, W }) {
-  const ew = el.width * S;
-  const eh = el.height * S;
-  const ey = el.y * S;
+  const m = HUP_W * S; // frame margin (50mm each side)
+  const ew = el.width * S + 2 * m;
+  const eh = el.height * S + 2 * m;
+  const ey = Math.max(0, el.y * S - m);
   let ex;
-  if (wallName === "front") ex = W - (el.x + el.width) * S;
-  else if (wallName === "right") ex = L - (el.x + el.width) * S;
-  else ex = el.x * S;
+  if (wallName === "front") ex = W - (el.x + el.width) * S - m;
+  else if (wallName === "right") ex = L - (el.x + el.width) * S - m;
+  else ex = Math.max(0, el.x * S - m);
   return { xMin: ex, xMax: ex + ew, yMin: ey, yMax: ey + eh };
 }
 
@@ -606,12 +794,12 @@ function InsulationPanel({ wallName, panelW, panelH, depth, rects, color, L, W, 
   switch (wallName) {
     case "back":
       // Inner face of back wall: X = T/2, panel spans Z (width) and Y (height)
-      position = [T / 2, F, 0];
+      position = [T / 2, F, W];
       rotation = [0, Math.PI / 2, 0];
       break;
     case "front":
       // Inner face of front wall: X = L - T/2, panel faces -X
-      position = [L - T / 2, F, W];
+      position = [L - T / 2, F, 0];
       rotation = [0, -Math.PI / 2, 0];
       break;
     case "left":
@@ -627,7 +815,7 @@ function InsulationPanel({ wallName, panelW, panelH, depth, rects, color, L, W, 
     case "roof":
       // Inner face of roof: Y = H - T/2, panel faces downward
       position = [0, H - T / 2, 0];
-      rotation = [-Math.PI / 2, 0, 0];
+      rotation = [Math.PI / 2, 0, 0];
       break;
     default:
       position = [0, 0, 0];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid } from "@react-three/drei";
 import { Raycaster } from "three";
@@ -217,6 +217,12 @@ export default function Canvas3D() {
   const selectElement = useConfigStore((s) => s.selectElement);
   const updateElement = useConfigStore((s) => s.updateElement);
   const cancelPlacement = useConfigStore((s) => s.cancelPlacement);
+  const containerSize = useConfigStore((s) => s.containerSize);
+
+  const orbitTarget = useMemo(() => {
+    const c = CONTAINER_SIZES[containerSize];
+    return [0, c.height * S / 2, 0];
+  }, [containerSize]);
 
   const [typePicker, setTypePicker] = useState(null);
   const [dragging, setDragging] = useState(null);
@@ -261,7 +267,7 @@ export default function Canvas3D() {
   }, []);
 
   return (
-    <div className="flex-1 h-full relative">
+    <div className="w-full h-full relative">
       <Canvas
         camera={{ position: [8, 5, 6], fov: 45 }}
         shadows
@@ -301,6 +307,7 @@ export default function Canvas3D() {
           minDistance={3}
           maxDistance={20}
           maxPolarAngle={Math.PI / 2 - 0.05}
+          target={orbitTarget}
         />
       </Canvas>
 

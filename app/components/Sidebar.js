@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useConfigStore, { CONTAINER_SIZES, getWallDims, RAL_COLORS } from "../store/useConfigStore";
 import { loadStepFile, loadGlbFile } from "../lib/stepLoader";
+import { supabase } from "../lib/supabase";
 
 const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre", floor: "Gulv", roof: "Tak" };
 
@@ -167,6 +168,16 @@ function ElementEditor({ el }) {
               Rektangel
             </label>
           </div>
+          <Toggle
+            label="Traforist"
+            checked={!!el.grille}
+            onChange={() => updateElement(el.id, { grille: !el.grille })}
+          />
+          <Toggle
+            label="Eksos"
+            checked={!!el.exhaust}
+            onChange={() => updateElement(el.id, { exhaust: !el.exhaust })}
+          />
         </>
       )}
     </div>
@@ -207,7 +218,7 @@ function ElementCard({ el, isSelected }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ userId, orgId }) {
   const elements = useConfigStore((s) => s.elements);
   const selectedId = useConfigStore((s) => s.selectedId);
   const placementMode = useConfigStore((s) => s.placementMode);
@@ -220,6 +231,8 @@ export default function Sidebar() {
   const containerColor = useConfigStore((s) => s.containerColor);
   const containerRal = useConfigStore((s) => s.containerRal);
   const setContainerColor = useConfigStore((s) => s.setContainerColor);
+  const paintType = useConfigStore((s) => s.paintType);
+  const setPaintType = useConfigStore((s) => s.setPaintType);
   const cladding = useConfigStore((s) => s.cladding);
   const toggleCladding = useConfigStore((s) => s.toggleCladding);
   const setCladdingDirection = useConfigStore((s) => s.setCladdingDirection);
@@ -239,12 +252,76 @@ export default function Sidebar() {
   const removeInteriorObject = useConfigStore((s) => s.removeInteriorObject);
   const selectInteriorObject = useConfigStore((s) => s.selectInteriorObject);
   const [uploading, setUploading] = useState(false);
+  const [libraryFiles, setLibraryFiles] = useState([]);
+  const [showLibrary, setShowLibrary] = useState(false);
+
+  // Load STEP library files
+  useEffect(() => {
+    if (!userId || !showLibrary) return;
+    (async () => {
+      let query = supabase
+        .from("step_library")
+        .select("id, file_name, storage_path, owner_id")
+        .order("created_at", { ascending: false });
+      if (orgId) {
+        query = query.or(`owner_id.eq.${userId},org_id.eq.${orgId}`);
+      } else {
+        query = query.eq("owner_id", userId);
+      }
+      const { data } = await query;
+      setLibraryFiles(data || []);
+    })();
+  }, [userId, orgId, showLibrary]);
+
+  const saveToLibrary = async (file) => {
+    if (!userId) return;
+    const path = `${userId}/${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from("step-files").upload(path, file);
+    if (upErr) { console.error("Upload failed:", upErr); return; }
+    await supabase.from("step_library").insert({
+      owner_id: userId,
+      org_id: orgId || null,
+      file_name: file.name,
+      storage_path: path,
+    });
+    // Refresh library list
+    setShowLibrary(true);
+    const { data } = await supabase
+      .from("step_library")
+      .select("id, file_name, storage_path, owner_id")
+      .order("created_at", { ascending: false })
+      .or(orgId ? `owner_id.eq.${userId},org_id.eq.${orgId}` : `owner_id.eq.${userId}`);
+    setLibraryFiles(data || []);
+  };
+
+  const loadFromLibrary = async (entry) => {
+    setUploading(true);
+    try {
+      const { data, error } = await supabase.storage.from("step-files").download(entry.storage_path);
+      if (error) throw error;
+      const file = new File([data], entry.file_name);
+      const ext = entry.file_name.split(".").pop().toLowerCase();
+      let geometryData;
+      if (ext === "glb" || ext === "gltf") {
+        geometryData = await loadGlbFile(file);
+      } else {
+        geometryData = await loadStepFile(file);
+      }
+      if (geometryData && geometryData.length > 0) {
+        addInteriorObject({ name: entry.file_name, geometryData });
+      }
+    } catch (err) {
+      console.error("Failed to load from library:", err);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
   return (
-    <aside className="w-80 min-w-80 h-full overflow-y-auto p-4 space-y-4 border-r border-[var(--border)]">
+    <aside className="fixed top-0 left-0 bottom-0 w-80 overflow-y-auto p-4 space-y-4 border-r border-[var(--border)] bg-[var(--bg-card)] z-20">
       <div className="mb-2">
         <h2 className="text-lg font-bold">⚙️ Konfigurasjon</h2>
         <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -367,6 +444,8 @@ export default function Sidebar() {
                 }
                 if (geometryData && geometryData.length > 0) {
                   addInteriorObject({ name: file.name, geometryData });
+                  // Save to Supabase library if logged in
+                  if (userId) saveToLibrary(file);
                 }
               } catch (err) {
                 console.error("Failed to load 3D file:", err);
@@ -380,6 +459,36 @@ export default function Sidebar() {
         <p className="text-[10px] text-[var(--text-secondary)]">
           Støtter: .step, .stp, .glb, .gltf
         </p>
+
+        {/* STEP Library */}
+        {userId && (
+          <div className="mt-2">
+            <button
+              onClick={() => setShowLibrary(!showLibrary)}
+              className="w-full text-xs py-1.5 rounded-lg border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors cursor-pointer"
+            >
+              📚 {showLibrary ? "Skjul bibliotek" : "Vis 3D-bibliotek"}
+            </button>
+            {showLibrary && (
+              <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                {libraryFiles.length === 0 && (
+                  <p className="text-[10px] text-[var(--text-secondary)]">Ingen lagrede filer ennå</p>
+                )}
+                {libraryFiles.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => loadFromLibrary(f)}
+                    disabled={uploading}
+                    className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[var(--accent)]/10 transition-colors truncate cursor-pointer"
+                    title={f.file_name}
+                  >
+                    📄 {f.file_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {interiorObjects.map((obj) => {
           const isSel = selectedInteriorId === obj.id;
@@ -474,6 +583,28 @@ export default function Sidebar() {
         <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
           🎨 Container farge
         </h3>
+
+        {/* Paint type selector */}
+        <div className="flex gap-2">
+          {[{ key: "fargeskift", label: "Fargeskift" }, { key: "epoxy", label: "Epoxy" }].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setPaintType(paintType === key ? null : key)}
+              className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                paintType === key
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {paintType && (
+          <p className="text-[10px] text-[var(--text-secondary)] italic">
+            {paintType === "epoxy" ? "Epoxy – høy slitestyrke, matt finish" : "Fargeskift – standard lakkering"}
+          </p>
+        )}
         {containerRal ? (
           <p className="text-xs text-[var(--text-primary)]">
             RAL {containerRal} – {RAL_COLORS.find((r) => r.code === containerRal)?.name || "Egendefinert"}

@@ -98,6 +98,7 @@ const useConfigStore = create((set, get) => ({
 
   containerColor: "#94a3b8",
   containerRal: null,
+  paintType: null, // null | "fargeskift" | "epoxy"
 
   cladding: { enabled: false, direction: "horizontal", color: "#94a3b8", ral: null },
 
@@ -143,7 +144,7 @@ const useConfigStore = create((set, get) => ({
       el = clampElement({
         ...base, type: "ventilation",
         x: Math.round(clickX), y: Math.round(clickY),
-        width: 400, height: 300, shape: "rectangle",
+        width: 400, height: 300, shape: "rectangle", grille: false, exhaust: false,
       }, wd);
     }
     set((s) => ({
@@ -183,6 +184,8 @@ const useConfigStore = create((set, get) => ({
   setShowDrawing: (v) => set({ showDrawing: v }),
 
   setContainerColor: (ral, hex) => set({ containerRal: ral, containerColor: hex }),
+
+  setPaintType: (type) => set({ paintType: type }),
 
   toggleCladding: () =>
     set((s) => ({ cladding: { ...s.cladding, enabled: !s.cladding.enabled } })),
@@ -256,6 +259,49 @@ const useConfigStore = create((set, get) => ({
   },
 
   selectInteriorObject: (id) => set({ selectedInteriorId: id, selectedId: null }),
+
+  // ── Serialization ────────────────────────────────────────
+  exportConfig: () => {
+    const s = get();
+    return {
+      containerSize: s.containerSize,
+      elements: s.elements,
+      slopedRoof: s.slopedRoof,
+      aluminumFloor: s.aluminumFloor,
+      containerColor: s.containerColor,
+      containerRal: s.containerRal,
+      paintType: s.paintType,
+      cladding: s.cladding,
+      hiddenWalls: [...s.hiddenWalls],
+      containerDoor: s.containerDoor,
+      insulation: { ...s.insulation, walls: [...s.insulation.walls] },
+      interiorObjects: s.interiorObjects,
+    };
+  },
+
+  importConfig: (data) => {
+    set({
+      containerSize: data.containerSize,
+      elements: data.elements || [],
+      slopedRoof: data.slopedRoof || { enabled: false },
+      aluminumFloor: data.aluminumFloor || { enabled: false },
+      containerColor: data.containerColor || "#94a3b8",
+      containerRal: data.containerRal || null,
+      paintType: data.paintType || null,
+      cladding: data.cladding || { enabled: false, direction: "horizontal", color: "#94a3b8", ral: null },
+      hiddenWalls: new Set(data.hiddenWalls || []),
+      containerDoor: data.containerDoor || { enabled: false, wall: "front" },
+      insulation: {
+        enabled: data.insulation?.enabled || false,
+        walls: new Set(data.insulation?.walls || ["front", "back", "left", "right", "roof"]),
+      },
+      interiorObjects: data.interiorObjects || [],
+      selectedId: null,
+      selectedInteriorId: null,
+      placementMode: null,
+      showDrawing: false,
+    });
+  },
 }));
 
 export default useConfigStore;
