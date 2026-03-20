@@ -2,7 +2,7 @@
 
 import useConfigStore, { CONTAINER, WALL_DIMS, RAL_COLORS } from "../store/useConfigStore";
 
-const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre" };
+const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre", floor: "Gulv", roof: "Tak" };
 
 function NumberInput({ label, value, onChange, min, max, unit = "mm" }) {
   return (
@@ -221,11 +221,6 @@ export default function Sidebar() {
   const toggleCladding = useConfigStore((s) => s.toggleCladding);
   const setCladdingDirection = useConfigStore((s) => s.setCladdingDirection);
   const setCladdingColor = useConfigStore((s) => s.setCladdingColor);
-  const hiddenWalls = useConfigStore((s) => s.hiddenWalls);
-  const toggleWallVisibility = useConfigStore((s) => s.toggleWallVisibility);
-  const containerDoor = useConfigStore((s) => s.containerDoor);
-  const toggleContainerDoor = useConfigStore((s) => s.toggleContainerDoor);
-  const setContainerDoorWall = useConfigStore((s) => s.setContainerDoorWall);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
@@ -244,7 +239,7 @@ export default function Sidebar() {
         {placementMode === "pending" ? (
           <div className="rounded-xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent)]/5 p-4 text-center space-y-2">
             <p className="text-sm font-medium text-[var(--accent)]">
-              👆 Klikk på en vegg i 3D-visningen
+              👆 Klikk på en flate i 3D-visningen
             </p>
             <p className="text-xs text-[var(--text-secondary)]">
               Velg flaten der elementet skal plasseres
@@ -366,66 +361,6 @@ export default function Sidebar() {
           </p>
         )}
         <Toggle label="🪵 Aluminium gulvplate" checked={aluminumFloor.enabled} onChange={toggleAluminumFloor} />
-      </div>
-
-      {/* Container door */}
-      <div className="pt-4 border-t border-[var(--border)] space-y-3">
-        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-          🚛 Containerdør
-        </h3>
-        <Toggle label="Vis containerdør" checked={containerDoor.enabled} onChange={toggleContainerDoor} />
-        {containerDoor.enabled && (
-          <div className="flex gap-3 pl-1">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="radio"
-                checked={containerDoor.wall === "front"}
-                onChange={() => setContainerDoorWall("front")}
-                className="accent-[var(--accent)]"
-              />
-              Front
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="radio"
-                checked={containerDoor.wall === "back"}
-                onChange={() => setContainerDoorWall("back")}
-                className="accent-[var(--accent)]"
-              />
-              Bak
-            </label>
-          </div>
-        )}
-      </div>
-
-      {/* Section view */}
-      <div className="pt-4 border-t border-[var(--border)] space-y-3">
-        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-          👁 Snittvisning
-        </h3>
-        <p className="text-xs text-[var(--text-secondary)]">
-          Skjul vegger for å se innvendig
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { wall: "front", label: "Front" },
-            { wall: "back", label: "Bak" },
-            { wall: "left", label: "Venstre" },
-            { wall: "right", label: "Høyre" },
-          ].map(({ wall, label }) => (
-            <button
-              key={wall}
-              onClick={() => toggleWallVisibility(wall)}
-              className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
-                hiddenWalls.has(wall)
-                  ? "border-red-400 bg-red-900/20 text-red-300 line-through"
-                  : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)] hover:border-[var(--accent)]"
-              }`}
-            >
-              {hiddenWalls.has(wall) ? "🚫" : "👁"} {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Cladding */}

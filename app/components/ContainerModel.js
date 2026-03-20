@@ -53,7 +53,7 @@ function ClickableWall({ wallName, position, size, rotation, children }) {
 function Floor() {
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
   return (
-    <mesh position={[L / 2, T / 2, W / 2]} receiveShadow>
+    <mesh position={[L / 2, T / 2, W / 2]} receiveShadow userData={{ wall: "floor" }}>
       <boxGeometry args={[L, T, W]} />
       <meshStandardMaterial
         color={aluminumFloor.enabled ? aluminumColor : steelDark}
@@ -67,7 +67,7 @@ function Floor() {
 function FlatRoof() {
   const containerColor = useConfigStore((s) => s.containerColor);
   return (
-    <mesh position={[L / 2, H, W / 2]} receiveShadow>
+    <mesh position={[L / 2, H, W / 2]} receiveShadow userData={{ wall: "roof" }}>
       <boxGeometry args={[L, T, W]} />
       <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.6} />
     </mesh>
@@ -235,6 +235,18 @@ function getWallTransform(wall, el) {
       return {
         pos: [L - cx, cy, W + offset],
         rot: [0, 0, 0],
+      };
+    case "floor":
+      // Floor at y=0, viewed from above: local X = +X(L), local Y = +Z(W)
+      return {
+        pos: [cx, -offset, cy],
+        rot: [-Math.PI / 2, 0, 0],
+      };
+    case "roof":
+      // Roof at y=H, viewed from above: local X = +X(L), local Y = +Z(W)
+      return {
+        pos: [cx, H + offset, cy],
+        rot: [-Math.PI / 2, 0, 0],
       };
     default:
       return { pos: [0, 0, 0], rot: [0, 0, 0] };
@@ -404,7 +416,7 @@ export default function ContainerModel() {
 
   return (
     <group position={[-L / 2, 0, -W / 2]}>
-      <Floor />
+      {!isHidden("floor") && <Floor />}
 
       {/* Back wall (x=0) */}
       {!isHidden("back") && <ClickableWall wallName="back" position={[0, H / 2, W / 2]} size={[T, H, W]} />}
@@ -419,7 +431,7 @@ export default function ContainerModel() {
       {!isHidden("front") && <ClickableWall wallName="front" position={[L, H / 2, W / 2]} size={[T, H, W]} />}
 
       {/* Roof */}
-      {slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />}
+      {!isHidden("roof") && (slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />)}
 
       {/* Cladding */}
       {cladding.enabled && <Cladding cladding={cladding} elements={elements} hiddenWalls={hiddenWalls} />}

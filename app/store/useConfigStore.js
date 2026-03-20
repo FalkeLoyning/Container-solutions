@@ -14,6 +14,8 @@ export const WALL_DIMS = {
   back:  { w: CONTAINER.width, h: CONTAINER.height },
   left:  { w: CONTAINER.length, h: CONTAINER.height },
   right: { w: CONTAINER.length, h: CONTAINER.height },
+  floor: { w: CONTAINER.length, h: CONTAINER.width },
+  roof:  { w: CONTAINER.length, h: CONTAINER.width },
 };
 
 export const RAL_COLORS = [
@@ -94,10 +96,11 @@ const useConfigStore = create((set, get) => ({
     const base = { id, wall };
     let el;
     if (type === "door") {
+      const isHorizontal = wall === "floor" || wall === "roof";
       el = clampElement({
         ...base, type: "door",
-        x: Math.round(clickX), y: 0,
-        width: 1000, height: 2100,
+        x: Math.round(clickX), y: isHorizontal ? Math.round(clickY) : 0,
+        width: 1000, height: isHorizontal ? 1000 : 2100,
       });
     } else {
       el = clampElement({
