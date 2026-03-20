@@ -35,10 +35,8 @@ function worldToWallLocal(wallName, point) {
       // Right at z=W, viewed from outside (+Z): local X = (L - px), local Y = py
       return { x: Math.round((L - px) / S), y: Math.round(py / S) };
     case "floor":
-      // Floor at y~0, viewed from above: local X = px, local Y = pz
       return { x: Math.round(px / S), y: Math.round(pz / S) };
     case "roof":
-      // Roof at y~H, viewed from above: local X = px, local Y = pz
       return { x: Math.round(px / S), y: Math.round(pz / S) };
     default:
       return { x: 0, y: 0 };
@@ -362,7 +360,6 @@ export default function Canvas3D() {
         Klikk og dra for å rotere · Scroll for å zoome
       </div>
 
-      {/* View menu - top right */}
       <ViewMenu />
     </div>
   );

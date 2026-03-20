@@ -76,31 +76,28 @@ function FlatRoof() {
 
 function SlopedRoof() {
   // 6% slope across width (left z=0 high, right z=W low)
-  const rise = W * 0.06; // ~146mm scaled
+  const rise = W * 0.06;
   const roofMat = <meshStandardMaterial color="#0E0E10" metalness={0.4} roughness={0.6} side={2} />;
 
-  // Main sloped panel
   const panelVerts = new Float32Array([
-    0, H + rise, 0,   // back-left (high)
-    L, H + rise, 0,   // front-left (high)
-    0, H, W,          // back-right (low)
-    L, H, W,          // front-right (low)
+    0, H + rise, 0,
+    L, H + rise, 0,
+    0, H, W,
+    L, H, W,
   ]);
   const panelIdx = new Uint16Array([0, 2, 1, 1, 2, 3]);
 
-  // Back gable triangle (x=0): fills gap between wall top and roof
   const backGableVerts = new Float32Array([
-    0, H, 0,          // back-left wall top
-    0, H + rise, 0,   // back-left roof
-    0, H, W,          // back-right wall top
+    0, H, 0,
+    0, H + rise, 0,
+    0, H, W,
   ]);
   const gableIdx = new Uint16Array([0, 1, 2]);
 
-  // Front gable triangle (x=L)
   const frontGableVerts = new Float32Array([
-    L, H, 0,          // front-left wall top
-    L, H + rise, 0,   // front-left roof
-    L, H, W,          // front-right wall top
+    L, H, 0,
+    L, H + rise, 0,
+    L, H, W,
   ]);
 
   return (
@@ -237,13 +234,11 @@ function getWallTransform(wall, el) {
         rot: [0, 0, 0],
       };
     case "floor":
-      // Floor at y=0, viewed from above: local X = +X(L), local Y = +Z(W)
       return {
         pos: [cx, -offset, cy],
         rot: [-Math.PI / 2, 0, 0],
       };
     case "roof":
-      // Roof at y=H, viewed from above: local X = +X(L), local Y = +Z(W)
       return {
         pos: [cx, H + offset, cy],
         rot: [-Math.PI / 2, 0, 0],
@@ -359,16 +354,14 @@ function Cladding({ cladding, elements, hiddenWalls }) {
 
 // Container door outline rendered on top of cladding
 function ContainerDoorOutline({ wall }) {
-  // Standard container double door: full width, full height of a short wall
-  const doorW = W;   // full container width
-  const doorH = H;   // full container height
-  const lineW = 0.015; // frame line thickness
-  const off = T / 2 + 0.025 + 0.001; // just outside cladding
+  const doorW = W;
+  const doorH = H;
+  const lineW = 0.015;
+  const off = T / 2 + 0.025 + 0.001;
 
   const frameMat = <meshBasicMaterial color="#ffffff" />;
   const handleMat = <meshBasicMaterial color="#e2e8f0" />;
 
-  // Position based on wall
   let pos, rotY;
   if (wall === "front") { pos = [L + off, H / 2, W / 2]; rotY = Math.PI / 2; }
   else if (wall === "back") { pos = [-off, H / 2, W / 2]; rotY = -Math.PI / 2; }
@@ -376,7 +369,6 @@ function ContainerDoorOutline({ wall }) {
 
   return (
     <group position={pos} rotation={[0, rotY, 0]}>
-      {/* Outer frame */}
       <mesh position={[0, doorH / 2 - lineW / 2, 0]}>
         <planeGeometry args={[doorW, lineW]} />{frameMat}
       </mesh>
@@ -389,11 +381,9 @@ function ContainerDoorOutline({ wall }) {
       <mesh position={[doorW / 2 - lineW / 2, 0, 0]}>
         <planeGeometry args={[lineW, doorH]} />{frameMat}
       </mesh>
-      {/* Center split line */}
       <mesh position={[0, 0, 0]}>
         <planeGeometry args={[lineW, doorH - lineW * 2]} />{frameMat}
       </mesh>
-      {/* Door handles */}
       <mesh position={[-0.06, H * 0.42, 0.001]}>
         <planeGeometry args={[0.03, 0.12]} />{handleMat}
       </mesh>
@@ -413,33 +403,21 @@ export default function ContainerModel() {
 
   const isHidden = (w) => hiddenWalls.has(w);
 
-
   return (
     <group position={[-L / 2, 0, -W / 2]}>
       {!isHidden("floor") && <Floor />}
 
-      {/* Back wall (x=0) */}
       {!isHidden("back") && <ClickableWall wallName="back" position={[0, H / 2, W / 2]} size={[T, H, W]} />}
-
-      {/* Left wall (z=0) */}
       {!isHidden("left") && <ClickableWall wallName="left" position={[L / 2, H / 2, 0]} size={[L, H, T]} />}
-
-      {/* Right wall (z=W) */}
       {!isHidden("right") && <ClickableWall wallName="right" position={[L / 2, H / 2, W]} size={[L, H, T]} />}
-
-      {/* Front wall (x=L) */}
       {!isHidden("front") && <ClickableWall wallName="front" position={[L, H / 2, W / 2]} size={[T, H, W]} />}
 
-      {/* Roof */}
       {!isHidden("roof") && (slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />)}
 
-      {/* Cladding */}
       {cladding.enabled && <Cladding cladding={cladding} elements={elements} hiddenWalls={hiddenWalls} />}
 
-      {/* Container door outline on cladding */}
       {containerDoor.enabled && <ContainerDoorOutline wall={containerDoor.wall} />}
 
-      {/* Render all elements */}
       {elements.map((el) =>
         el.type === "door" ? (
           <DoorMesh key={el.id} el={el} />
