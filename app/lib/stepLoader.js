@@ -64,30 +64,49 @@ export async function loadGlbFile(file) {
   });
 }
 
+// Geometry cache: id -> BufferGeometry (kept outside Zustand to avoid proxy overhead)
+export const geometryCache = new Map();
+
 export function geometryDataToBufferGeometry(geometryData) {
   const merged = new THREE.BufferGeometry();
-  const allVerts = [];
-  const allNorms = [];
-  const allIndices = [];
-  let vertexOffset = 0;
+
+  // Calculate total sizes first to use typed arrays (avoids spread stack overflow)
+  let totalVerts = 0, totalNorms = 0, totalIdx = 0;
+  for (const mesh of geometryData) {
+    totalVerts += mesh.vertices.length;
+    if (mesh.normals) totalNorms += mesh.normals.length;
+    if (mesh.index) totalIdx += mesh.index.length;
+  }
+
+  const verts = new Float32Array(totalVerts);
+  const norms = totalNorms > 0 ? new Float32Array(totalNorms) : null;
+  const indices = totalIdx > 0 ? new Uint32Array(totalIdx) : null;
+  let vOff = 0, nOff = 0, iOff = 0, vertexOffset = 0;
 
   for (const mesh of geometryData) {
-    allVerts.push(...mesh.vertices);
-    if (mesh.normals) allNorms.push(...mesh.normals);
-    if (mesh.index) {
-      for (const i of mesh.index) allIndices.push(i + vertexOffset);
+    verts.set(mesh.vertices, vOff);
+    vOff += mesh.vertices.length;
+    if (norms && mesh.normals) {
+      norms.set(mesh.normals, nOff);
+      nOff += mesh.normals.length;
+    }
+    if (indices && mesh.index) {
+      for (let i = 0; i < mesh.index.length; i++) {
+        indices[iOff + i] = mesh.index[i] + vertexOffset;
+      }
+      iOff += mesh.index.length;
     }
     vertexOffset += mesh.vertices.length / 3;
   }
 
-  merged.setAttribute("position", new THREE.Float32BufferAttribute(allVerts, 3));
-  if (allNorms.length > 0) {
-    merged.setAttribute("normal", new THREE.Float32BufferAttribute(allNorms, 3));
+  merged.setAttribute("position", new THREE.BufferAttribute(verts, 3));
+  if (norms) {
+    merged.setAttribute("normal", new THREE.BufferAttribute(norms, 3));
   }
-  if (allIndices.length > 0) {
-    merged.setIndex(allIndices);
+  if (indices) {
+    merged.setIndex(new THREE.BufferAttribute(indices, 1));
   }
-  if (allNorms.length === 0) {
+  if (!norms) {
     merged.computeVertexNormals();
   }
 

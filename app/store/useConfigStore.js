@@ -170,11 +170,13 @@ const useConfigStore = create((set, get) => ({
   setContainerDoorWall: (wall) =>
     set((s) => ({ containerDoor: { ...s.containerDoor, wall } })),
 
-  // Interior objects
+  // Interior objects (geometry stored in geometryCache, not in Zustand)
   addInteriorObject: ({ name, geometryData }) => {
+    const { geometryCache, geometryDataToBufferGeometry } = require("../lib/stepLoader");
     const id = nextId++;
+    geometryCache.set(id, geometryDataToBufferGeometry(geometryData));
     const obj = {
-      id, name, geometryData,
+      id, name,
       x: CONTAINER.length / 2,
       y: 0,
       z: CONTAINER.width / 2,
@@ -195,11 +197,14 @@ const useConfigStore = create((set, get) => ({
       ),
     })),
 
-  removeInteriorObject: (id) =>
+  removeInteriorObject: (id) => {
+    const { geometryCache } = require("../lib/stepLoader");
+    geometryCache.delete(id);
     set((s) => ({
       interiorObjects: s.interiorObjects.filter((o) => o.id !== id),
       selectedInteriorId: s.selectedInteriorId === id ? null : s.selectedInteriorId,
-    })),
+    }));
+  },
 
   selectInteriorObject: (id) => set({ selectedInteriorId: id, selectedId: null }),
 }));

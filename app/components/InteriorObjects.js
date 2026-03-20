@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import * as THREE from "three";
 import useConfigStore from "../store/useConfigStore";
-import { geometryDataToBufferGeometry } from "../lib/stepLoader";
+import { geometryCache } from "../lib/stepLoader";
 
 const S = 0.001;
 const highlightColor = "#0284c7";
@@ -13,9 +12,8 @@ function InteriorMesh({ obj }) {
   const isSelected = selectedId === obj.id;
 
   const geometry = useMemo(() => {
-    if (!obj.geometryData || obj.geometryData.length === 0) return null;
-    return geometryDataToBufferGeometry(obj.geometryData);
-  }, [obj.geometryData]);
+    return geometryCache.get(obj.id) || null;
+  }, [obj.id]);
 
   if (!geometry) return null;
 
