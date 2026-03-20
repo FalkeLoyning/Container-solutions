@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import useConfigStore, { CONTAINER } from "../store/useConfigStore";
+import InteriorObjects from "./InteriorObjects";
 
 // Scale: mm -> Three.js units (meters)
 const S = 0.001;
@@ -425,6 +426,8 @@ export default function ContainerModel() {
           <VentMesh key={el.id} el={el} />
         )
       )}
+
+      <InteriorObjects />
     </group>
   );
 }

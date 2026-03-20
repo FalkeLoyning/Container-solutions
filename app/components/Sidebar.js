@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import useConfigStore, { CONTAINER, WALL_DIMS, RAL_COLORS } from "../store/useConfigStore";
+import { loadStepFile, loadGlbFile } from "../lib/stepLoader";
 
 const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre", floor: "Gulv", roof: "Tak" };
 
@@ -222,6 +224,15 @@ export default function Sidebar() {
   const setCladdingDirection = useConfigStore((s) => s.setCladdingDirection);
   const setCladdingColor = useConfigStore((s) => s.setCladdingColor);
 
+  // Interior objects
+  const interiorObjects = useConfigStore((s) => s.interiorObjects);
+  const selectedInteriorId = useConfigStore((s) => s.selectedInteriorId);
+  const addInteriorObject = useConfigStore((s) => s.addInteriorObject);
+  const updateInteriorObject = useConfigStore((s) => s.updateInteriorObject);
+  const removeInteriorObject = useConfigStore((s) => s.removeInteriorObject);
+  const selectInteriorObject = useConfigStore((s) => s.selectInteriorObject);
+  const [uploading, setUploading] = useState(false);
+
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
@@ -294,6 +305,140 @@ export default function Sidebar() {
           Trykk knappen over for å starte.
         </p>
       )}
+
+      {/* Interior 3D objects */}
+      <div className="pt-4 border-t border-[var(--border)] space-y-2">
+        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          📦 Interiørobjekter
+        </h3>
+        <label
+          className={`block w-full py-2 px-4 rounded-xl font-semibold text-sm text-center transition-all cursor-pointer
+            ${uploading
+              ? "bg-[var(--border)] text-[var(--text-secondary)]"
+              : "bg-[var(--accent)]/15 text-[var(--accent)] hover:bg-[var(--accent)]/25 border border-dashed border-[var(--accent)]"
+            }`}
+        >
+          {uploading ? "Laster…" : "+ Last opp 3D-fil"}
+          <input
+            type="file"
+            accept=".step,.stp,.glb,.gltf"
+            className="hidden"
+            disabled={uploading}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setUploading(true);
+              try {
+                const ext = file.name.split(".").pop().toLowerCase();
+                let geometryData;
+                if (ext === "glb" || ext === "gltf") {
+                  geometryData = await loadGlbFile(file);
+                } else {
+                  geometryData = await loadStepFile(file);
+                }
+                if (geometryData && geometryData.length > 0) {
+                  addInteriorObject({ name: file.name, geometryData });
+                }
+              } catch (err) {
+                console.error("Failed to load 3D file:", err);
+              } finally {
+                setUploading(false);
+                e.target.value = "";
+              }
+            }}
+          />
+        </label>
+        <p className="text-[10px] text-[var(--text-secondary)]">
+          Støtter: .step, .stp, .glb, .gltf
+        </p>
+
+        {interiorObjects.map((obj) => {
+          const isSel = selectedInteriorId === obj.id;
+          return (
+            <div
+              key={obj.id}
+              onClick={() => selectInteriorObject(obj.id)}
+              className={`rounded-xl border p-3 cursor-pointer transition-all ${
+                isSel
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 shadow-md shadow-[var(--accent)]/10"
+                  : "border-[var(--border)] bg-[var(--bg-card)] hover:border-[var(--border-hover)]"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-medium truncate">📦 {obj.name}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeInteriorObject(obj.id); }}
+                  className="text-xs px-2 py-0.5 rounded bg-red-900/50 text-red-300 hover:bg-red-800 transition-colors"
+                >
+                  🗑
+                </button>
+              </div>
+              {isSel && (
+                <div className="mt-3 pt-3 border-t border-[var(--border)] space-y-3">
+                  <NumberInput
+                    label="X (mm fra bak-vegg)"
+                    value={Math.round(obj.x)}
+                    onChange={(v) => updateInteriorObject(obj.id, { x: v })}
+                    min={0}
+                    max={CONTAINER.length}
+                  />
+                  <NumberInput
+                    label="Y (mm fra gulv)"
+                    value={Math.round(obj.y)}
+                    onChange={(v) => updateInteriorObject(obj.id, { y: v })}
+                    min={0}
+                    max={CONTAINER.height}
+                  />
+                  <NumberInput
+                    label="Z (mm fra venstre vegg)"
+                    value={Math.round(obj.z)}
+                    onChange={(v) => updateInteriorObject(obj.id, { z: v })}
+                    min={0}
+                    max={CONTAINER.width}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs text-[var(--text-secondary)]">
+                      <span>Rotasjon Y</span>
+                      <span>{Math.round((obj.rotY * 180) / Math.PI)}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={628}
+                      value={Math.round(obj.rotY * 100)}
+                      onChange={(e) => updateInteriorObject(obj.id, { rotY: Number(e.target.value) / 100 })}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs text-[var(--text-secondary)]">
+                      <span>Skala</span>
+                      <span>{obj.scale.toFixed(2)}×</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={500}
+                      value={Math.round(obj.scale * 100)}
+                      onChange={(e) => updateInteriorObject(obj.id, { scale: Number(e.target.value) / 100 })}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--text-secondary)]">Farge:</span>
+                    <input
+                      type="color"
+                      value={obj.color}
+                      onChange={(e) => updateInteriorObject(obj.id, { color: e.target.value })}
+                      className="w-8 h-6 rounded border border-[var(--border)] cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Container color */}
       <div className="pt-4 border-t border-[var(--border)] space-y-2">

@@ -107,6 +107,11 @@ function ClickableScene({ onWallClick, onDragStart, dragging }) {
 
       let obj = event.object;
       while (obj) {
+        if (obj.userData?.interiorId) {
+          useConfigStore.getState().selectInteriorObject(obj.userData.interiorId);
+          event.stopPropagation();
+          return;
+        }
         if (obj.userData?.elementId) {
           const elements = useConfigStore.getState().elements;
           const el = elements.find((e) => e.id === obj.userData.elementId);

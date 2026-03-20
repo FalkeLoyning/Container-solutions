@@ -86,6 +86,10 @@ const useConfigStore = create((set, get) => ({
   // Container door (standard double door)
   containerDoor: { enabled: false, wall: "front" },
 
+  // Interior 3D objects (STEP / GLB uploads)
+  interiorObjects: [],
+  selectedInteriorId: null,
+
   // Start placement mode
   startPlacement: () => set({ placementMode: "pending", selectedId: null }),
   cancelPlacement: () => set({ placementMode: null }),
@@ -165,6 +169,39 @@ const useConfigStore = create((set, get) => ({
 
   setContainerDoorWall: (wall) =>
     set((s) => ({ containerDoor: { ...s.containerDoor, wall } })),
+
+  // Interior objects
+  addInteriorObject: ({ name, geometryData }) => {
+    const id = nextId++;
+    const obj = {
+      id, name, geometryData,
+      x: CONTAINER.length / 2,
+      y: 0,
+      z: CONTAINER.width / 2,
+      rotY: 0,
+      scale: 1,
+      color: "#78909c",
+    };
+    set((s) => ({
+      interiorObjects: [...s.interiorObjects, obj],
+      selectedInteriorId: id,
+    }));
+  },
+
+  updateInteriorObject: (id, partial) =>
+    set((s) => ({
+      interiorObjects: s.interiorObjects.map((o) =>
+        o.id === id ? { ...o, ...partial } : o
+      ),
+    })),
+
+  removeInteriorObject: (id) =>
+    set((s) => ({
+      interiorObjects: s.interiorObjects.filter((o) => o.id !== id),
+      selectedInteriorId: s.selectedInteriorId === id ? null : s.selectedInteriorId,
+    })),
+
+  selectInteriorObject: (id) => set({ selectedInteriorId: id, selectedId: null }),
 }));
 
 export default useConfigStore;
