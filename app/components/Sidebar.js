@@ -33,9 +33,13 @@ function NumberInput({ label, value, onChange, min, max, unit = "mm" }) {
 
 function Toggle({ label, checked, onChange }) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer group">
+    <button
+      type="button"
+      onClick={onChange}
+      className="flex items-center gap-3 cursor-pointer group w-full text-left"
+    >
       <div
-        className={`relative w-10 h-5 rounded-full transition-colors ${
+        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
           checked ? "bg-[var(--accent)]" : "bg-[var(--border)]"
         }`}
       >
@@ -48,7 +52,7 @@ function Toggle({ label, checked, onChange }) {
       <span className="text-sm font-medium group-hover:text-[var(--accent)] transition-colors">
         {label}
       </span>
-    </label>
+    </button>
   );
 }
 
