@@ -357,7 +357,7 @@ export default function Sidebar() {
         <Toggle label="📐 Skråtak" checked={slopedRoof.enabled} onChange={toggleSlopedRoof} />
         {slopedRoof.enabled && (
           <p className="text-xs text-[var(--text-secondary)] pl-[52px]">
-            400mm fall mot front · Alltid sort
+            6% helling, venstre → høyre · Sort
           </p>
         )}
         <Toggle label="🪵 Aluminium gulvplate" checked={aluminumFloor.enabled} onChange={toggleAluminumFloor} />
