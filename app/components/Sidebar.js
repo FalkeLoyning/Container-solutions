@@ -344,7 +344,7 @@ export default function Sidebar() {
               : "bg-[var(--accent)]/15 text-[var(--accent)] hover:bg-[var(--accent)]/25 border border-dashed border-[var(--accent)]"
             }`}
         >
-          {uploading ? "Laster…" : "+ Last opp 3D-fil"}
+          {uploading ? "Behandler fil…" : "+ Last opp 3D-fil"}
           <input
             type="file"
             accept=".step,.stp,.glb,.gltf"

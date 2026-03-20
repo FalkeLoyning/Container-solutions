@@ -2,40 +2,33 @@
 
 import * as THREE from "three";
 
-let occtInitPromise = null;
+export function loadStepFile(file) {
+  return new Promise(async (resolve, reject) => {
+    const worker = new Worker("/stepWorker.js");
+    const buffer = await file.arrayBuffer();
 
-async function getOcct() {
-  if (!occtInitPromise) {
-    occtInitPromise = (async () => {
-      const occtImport = await import("occt-import-js");
-      const occt = await occtImport.default({
-        locateFile: () => "/occt-import-js.wasm",
-      });
-      return occt;
-    })();
-  }
-  return occtInitPromise;
-}
+    worker.onmessage = (e) => {
+      worker.terminate();
+      if (e.data.error) {
+        reject(new Error(e.data.error));
+        return;
+      }
+      const geometryData = e.data.meshes.map((m) => ({
+        vertices: m.vertices,
+        normals: m.normals,
+        index: m.index,
+      }));
+      resolve(geometryData);
+    };
 
-export async function loadStepFile(file) {
-  const occt = await getOcct();
-  const buffer = await file.arrayBuffer();
-  const result = occt.ReadStepFile(new Uint8Array(buffer), null);
+    worker.onerror = (err) => {
+      worker.terminate();
+      reject(new Error(err.message || "Worker-feil ved STEP-parsing"));
+    };
 
-  if (!result.success || result.meshes.length === 0) {
-    throw new Error("Kunne ikke lese STEP-fil");
-  }
-
-  const geometryData = [];
-  for (const mesh of result.meshes) {
-    const vertices = Array.from(mesh.attributes.position.array);
-    const normals = mesh.attributes.normal
-      ? Array.from(mesh.attributes.normal.array)
-      : null;
-    const index = mesh.index ? Array.from(mesh.index.array) : null;
-    geometryData.push({ vertices, normals, index });
-  }
-  return geometryData;
+    // Transfer the ArrayBuffer to the worker (zero-copy)
+    worker.postMessage(buffer, [buffer]);
+  });
 }
 
 export async function loadGlbFile(file) {
