@@ -137,34 +137,91 @@ function WallElements({ elements, wallName, viewW, viewH, flip = false }) {
   });
 }
 
-function WallView({ title, wallName, wallW, wallH, elements, slopedRoof }) {
+function WallView({ title, wallName, wallW, wallH, elements, slopedRoof, cladding, containerDoor }) {
   const w = wallW * SC;
   const h = wallH * SC;
-  const isFront = wallName === "front";
-  const drop = slopedRoof && isFront ? 400 * SC : 0;
+  const isLeft = wallName === "left";
+  const isRight = wallName === "right";
+  const rise = CW * 0.06 * SC; // 6% of width in SVG units
 
   return (
     <div>
       <h3 className="text-sm font-semibold text-[var(--accent)] mb-2">{title}</h3>
       <svg
-        viewBox={`${-PAD} ${-PAD} ${w + PAD * 2} ${h + PAD * 2}`}
+        viewBox={`${-PAD} ${-PAD - (slopedRoof ? rise + 10 : 0)} ${w + PAD * 2} ${h + PAD * 2 + (slopedRoof ? rise + 10 : 0)}`}
         className="w-full bg-[var(--bg-primary)] rounded-lg border border-[var(--border)]"
-        style={{ maxHeight: 260 }}
+        style={{ maxHeight: 280 }}
       >
         <ArrowMarker />
-        <rect x={0} y={drop} width={w} height={h - drop} fill="none" stroke="#94a3b8" strokeWidth={3} />
+        {/* Wall outline */}
+        <rect x={0} y={0} width={w} height={h} fill="none" stroke="#94a3b8" strokeWidth={3} />
+
+        {/* Cladding indication */}
+        {cladding && cladding.enabled && (
+          <g>
+            {cladding.direction === "horizontal" ? (
+              // Horizontal lines
+              Array.from({ length: Math.floor(h / 15) }, (_, i) => (
+                <line key={`cl${i}`} x1={2} y1={i * 15 + 7} x2={w - 2} y2={i * 15 + 7}
+                  stroke={cladding.color} strokeWidth={0.5} strokeOpacity={0.35} />
+              ))
+            ) : (
+              // Vertical lines
+              Array.from({ length: Math.floor(w / 15) }, (_, i) => (
+                <line key={`cl${i}`} x1={i * 15 + 7} y1={2} x2={i * 15 + 7} y2={h - 2}
+                  stroke={cladding.color} strokeWidth={0.5} strokeOpacity={0.35} />
+              ))
+            )}
+            <text x={w - 5} y={15} fill={cladding.color} fontSize={6} textAnchor="end" opacity={0.5}>
+              Kledning
+            </text>
+          </g>
+        )}
+
+        {/* Sloped roof on side walls */}
+        {slopedRoof && (isLeft || isRight) && (
+          <g>
+            <line x1={0} y1={-rise} x2={0} y2={0} stroke="#0E0E10" strokeWidth={2} />
+            <line x1={0} y1={-rise} x2={w} y2={0} stroke="#0E0E10" strokeWidth={2} />
+            <polygon
+              points={`0,${-rise} ${w},0 0,0`}
+              fill="#0E0E10" fillOpacity={0.15}
+            />
+            <text x={w / 4} y={-rise / 2 - 3} fill="#475569" fontSize={6} textAnchor="middle">
+              Skråtak 6%
+            </text>
+          </g>
+        )}
+
+        {/* Container door */}
+        {containerDoor && containerDoor.enabled && containerDoor.wall === wallName && (
+          <g>
+            {/* Double door outline */}
+            <rect x={w * 0.05} y={h * 0.08} width={w * 0.9} height={h * 0.92}
+              fill="#78909c" fillOpacity={0.15} stroke="#78909c" strokeWidth={2} />
+            {/* Center split */}
+            <line x1={w / 2} y1={h * 0.08} x2={w / 2} y2={h}
+              stroke="#4a5568" strokeWidth={1.5} />
+            {/* Handles */}
+            <rect x={w / 2 - 8} y={h * 0.5} width={3} height={12} fill="#4a5568" />
+            <rect x={w / 2 + 5} y={h * 0.5} width={3} height={12} fill="#4a5568" />
+            <text x={w / 2} y={h * 0.5 - 5} fill="#475569" fontSize={7} textAnchor="middle">
+              Containerdør
+            </text>
+          </g>
+        )}
 
         <WallElements elements={elements} wallName={wallName} viewW={w} viewH={h} />
 
         {/* Dimensions */}
         <DimensionLine x1={0} y1={h} x2={w} y2={h} label={`${wallW} mm`} offset={30} />
-        <DimensionLine x1={0} y1={drop} x2={0} y2={h} label={`${wallH - (slopedRoof && isFront ? 400 : 0)} mm`} offset={30} />
+        <DimensionLine x1={0} y1={0} x2={0} y2={h} label={`${wallH} mm`} offset={30} />
 
         {/* Origin marker */}
         <circle cx={0} cy={h} r={3} fill="#34d399" />
         <text x={5} y={h - 5} fill="#34d399" fontSize={8}>Origo</text>
 
-        <text x={w / 2} y={-PAD / 2 + 10} fill="#475569" fontSize={10} textAnchor="middle">
+        <text x={w / 2} y={-PAD / 2 + 10 - (slopedRoof && (isLeft || isRight) ? rise : 0)} fill="#475569" fontSize={10} textAnchor="middle">
           {WALL_LABELS[wallName]} vegg
         </text>
       </svg>
@@ -172,7 +229,7 @@ function WallView({ title, wallName, wallW, wallH, elements, slopedRoof }) {
   );
 }
 
-function TopView({ elements, slopedRoof }) {
+function TopView({ elements, slopedRoof, cladding, containerDoor }) {
   const w = CL * SC;
   const h = CW * SC;
 
@@ -192,6 +249,42 @@ function TopView({ elements, slopedRoof }) {
       >
         <ArrowMarker />
         <rect x={0} y={0} width={w} height={h} fill="none" stroke="#94a3b8" strokeWidth={3} />
+
+        {/* Sloped roof indication */}
+        {slopedRoof && (
+          <g>
+            {/* Arrow showing slope direction (top to bottom = left wall to right wall) */}
+            <line x1={w / 2} y1={8} x2={w / 2} y2={h - 8}
+              stroke="#0E0E10" strokeWidth={1} strokeDasharray="4,3"
+              markerEnd="url(#arrow)" />
+            <text x={w / 2 + 8} y={h / 2} fill="#475569" fontSize={7} textAnchor="start">
+              6% ↓
+            </text>
+          </g>
+        )}
+
+        {/* Cladding border indication */}
+        {cladding && cladding.enabled && (
+          <rect x={-3} y={-3} width={w + 6} height={h + 6}
+            fill="none" stroke={cladding.color} strokeWidth={2} strokeDasharray="6,3" strokeOpacity={0.5} />
+        )}
+
+        {/* Container door indication */}
+        {containerDoor && containerDoor.enabled && (
+          containerDoor.wall === "back" ? (
+            <g>
+              <rect x={-6} y={h * 0.05} width={8} height={h * 0.9}
+                fill="#78909c" fillOpacity={0.3} stroke="#78909c" strokeWidth={1} />
+              <line x1={-2} y1={h / 2} x2={-2} y2={h / 2}
+                stroke="#4a5568" strokeWidth={1} />
+            </g>
+          ) : (
+            <g>
+              <rect x={w - 2} y={h * 0.05} width={8} height={h * 0.9}
+                fill="#78909c" fillOpacity={0.3} stroke="#78909c" strokeWidth={1} />
+            </g>
+          )
+        )}
 
         {/* Front wall elements (at x=L, shown at right side) */}
         {frontEls.map((el) => (
@@ -261,13 +354,18 @@ function TopView({ elements, slopedRoof }) {
 export default function DrawingPreview() {
   const elements = useConfigStore((s) => s.elements);
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
+  const cladding = useConfigStore((s) => s.cladding);
+  const containerDoor = useConfigStore((s) => s.containerDoor);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
-  // Get unique walls that have elements
-  const wallsWithElements = [...new Set(elements.map((e) => e.wall))];
+  // Get unique walls that have elements, plus containerDoor wall, plus side walls if slopedRoof
+  const wallsWithStuff = new Set(elements.map((e) => e.wall));
+  if (containerDoor.enabled) wallsWithStuff.add(containerDoor.wall);
+  if (slopedRoof.enabled) { wallsWithStuff.add("left"); wallsWithStuff.add("right"); }
+  const wallsToShow = [...wallsWithStuff];
 
   return (
     <div
@@ -295,11 +393,11 @@ export default function DrawingPreview() {
         </div>
 
         {/* Top view */}
-        <TopView elements={elements} slopedRoof={slopedRoof.enabled} />
+        <TopView elements={elements} slopedRoof={slopedRoof.enabled} cladding={cladding} containerDoor={containerDoor} />
 
         {/* Individual wall views */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {wallsWithElements.map((wall) => (
+          {wallsToShow.map((wall) => (
             <WallView
               key={wall}
               title={`${WALL_LABELS[wall]} vegg`}
@@ -308,6 +406,8 @@ export default function DrawingPreview() {
               wallH={WALL_DIMS[wall].h}
               elements={elements}
               slopedRoof={slopedRoof.enabled}
+              cladding={cladding}
+              containerDoor={containerDoor}
             />
           ))}
         </div>
@@ -323,7 +423,19 @@ export default function DrawingPreview() {
             {slopedRoof.enabled && (
               <>
                 <span className="text-[var(--text-secondary)]">Tak:</span>
-                <span>Skråtak, 400mm fall mot front</span>
+                <span>Skråtak, 6% helling venstre → høyre</span>
+              </>
+            )}
+            {cladding.enabled && (
+              <>
+                <span className="text-[var(--text-secondary)]">Kledning:</span>
+                <span>{cladding.direction === "horizontal" ? "Liggende" : "Stående"}{cladding.ral ? ` · RAL ${cladding.ral}` : ""}</span>
+              </>
+            )}
+            {containerDoor.enabled && (
+              <>
+                <span className="text-[var(--text-secondary)]">Containerdør:</span>
+                <span>Standard dobbeltdør, {containerDoor.wall === "back" ? "bak" : "front"}vegg</span>
               </>
             )}
           </div>

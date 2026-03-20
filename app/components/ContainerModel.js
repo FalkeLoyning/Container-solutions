@@ -252,6 +252,68 @@ function getWallTransform(wall, el) {
   }
 }
 
+// Standard container double doors (fills most of the short wall)
+function ContainerDoors({ wall }) {
+  const doorW = W * 0.9; // ~90% of wall width
+  const doorH = H * 0.92;
+  const halfW = doorW / 2;
+  const gap = 0.005;
+  const offset = T / 2 + 0.003;
+
+  // Position based on wall
+  let pos, rot;
+  if (wall === "back") {
+    pos = [-offset, doorH / 2, W / 2];
+    rot = [0, -Math.PI / 2, 0];
+  } else {
+    pos = [L + offset, doorH / 2, W / 2];
+    rot = [0, Math.PI / 2, 0];
+  }
+
+  return (
+    <group position={pos} rotation={rot}>
+      {/* Left door panel */}
+      <mesh position={[-(halfW / 2 + gap / 2), 0, 0]}>
+        <planeGeometry args={[halfW - gap, doorH]} />
+        <meshStandardMaterial color="#78909c" metalness={0.4} roughness={0.5} />
+      </mesh>
+      {/* Right door panel */}
+      <mesh position={[(halfW / 2 + gap / 2), 0, 0]}>
+        <planeGeometry args={[halfW - gap, doorH]} />
+        <meshStandardMaterial color="#78909c" metalness={0.4} roughness={0.5} />
+      </mesh>
+      {/* Center line / latch */}
+      <mesh position={[0, 0, 0.001]}>
+        <planeGeometry args={[0.02, doorH * 0.85]} />
+        <meshStandardMaterial color="#4a5568" metalness={0.6} roughness={0.3} />
+      </mesh>
+      {/* Handles */}
+      <mesh position={[-0.06, doorH * 0.05, 0.002]}>
+        <planeGeometry args={[0.015, 0.12]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.2} />
+      </mesh>
+      <mesh position={[0.06, doorH * 0.05, 0.002]}>
+        <planeGeometry args={[0.015, 0.12]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Hinges (left side) */}
+      {[-0.35, 0, 0.35].map((yOff, i) => (
+        <mesh key={`hl${i}`} position={[-(halfW - 0.02), doorH * 0.15 * yOff, 0.002]}>
+          <planeGeometry args={[0.03, 0.05]} />
+          <meshStandardMaterial color="#1a1a1a" metalness={0.7} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Hinges (right side) */}
+      {[-0.35, 0, 0.35].map((yOff, i) => (
+        <mesh key={`hr${i}`} position={[(halfW - 0.02), doorH * 0.15 * yOff, 0.002]}>
+          <planeGeometry args={[0.03, 0.05]} />
+          <meshStandardMaterial color="#1a1a1a" metalness={0.7} roughness={0.3} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 // Check if two 1D ranges overlap
 function rangesOverlap(a0, a1, b0, b1) {
   return a0 < b1 && a1 > b0;
@@ -383,6 +445,7 @@ export default function ContainerModel() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const elements = useConfigStore((s) => s.elements);
   const cladding = useConfigStore((s) => s.cladding);
+  const containerDoor = useConfigStore((s) => s.containerDoor);
 
   return (
     <group position={[-L / 2, 0, -W / 2]}>
@@ -399,6 +462,9 @@ export default function ContainerModel() {
 
       {/* Front wall (x=L) */}
       <ClickableWall wallName="front" position={[L, H / 2, W / 2]} size={[T, H, W]} />
+
+      {/* Container double doors */}
+      {containerDoor.enabled && <ContainerDoors wall={containerDoor.wall} />}
 
       {/* Flat roof always shown */}
       <FlatRoof />
