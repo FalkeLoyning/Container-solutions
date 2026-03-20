@@ -115,14 +115,14 @@ function ElementEditor({ el }) {
             label="Bredde"
             value={el.width}
             onChange={(v) => updateElement(el.id, { width: v })}
-            min={300}
+            min={1}
             max={wallDim.w}
           />
           <NumberInput
             label="Høyde"
             value={el.height}
             onChange={(v) => updateElement(el.id, { height: v })}
-            min={400}
+            min={1}
             max={wallDim.h}
           />
         </>
@@ -134,14 +134,14 @@ function ElementEditor({ el }) {
             label="Bredde"
             value={el.width}
             onChange={(v) => updateElement(el.id, { width: v })}
-            min={50}
+            min={1}
             max={wallDim.w}
           />
           <NumberInput
             label="Høyde"
             value={el.height}
             onChange={(v) => updateElement(el.id, { height: v })}
-            min={50}
+            min={1}
             max={wallDim.h}
           />
           <div className="flex gap-3">
@@ -221,9 +221,6 @@ export default function Sidebar() {
   const toggleCladding = useConfigStore((s) => s.toggleCladding);
   const setCladdingDirection = useConfigStore((s) => s.setCladdingDirection);
   const setCladdingColor = useConfigStore((s) => s.setCladdingColor);
-  const containerDoor = useConfigStore((s) => s.containerDoor);
-  const toggleContainerDoor = useConfigStore((s) => s.toggleContainerDoor);
-  const setContainerDoorWall = useConfigStore((s) => s.setContainerDoorWall);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
@@ -360,33 +357,10 @@ export default function Sidebar() {
         <Toggle label="📐 Skråtak" checked={slopedRoof.enabled} onChange={toggleSlopedRoof} />
         {slopedRoof.enabled && (
           <p className="text-xs text-[var(--text-secondary)] pl-[52px]">
-            6% helling, venstre → høyre · Sort
+            400mm fall mot front · Alltid sort
           </p>
         )}
         <Toggle label="🪵 Aluminium gulvplate" checked={aluminumFloor.enabled} onChange={toggleAluminumFloor} />
-        <Toggle label="🚪 Containerdør" checked={containerDoor.enabled} onChange={toggleContainerDoor} />
-        {containerDoor.enabled && (
-          <div className="flex gap-3 pl-[52px]">
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
-              <input
-                type="radio"
-                checked={containerDoor.wall === "back"}
-                onChange={() => setContainerDoorWall("back")}
-                className="accent-[var(--accent)]"
-              />
-              Bak
-            </label>
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
-              <input
-                type="radio"
-                checked={containerDoor.wall === "front"}
-                onChange={() => setContainerDoorWall("front")}
-                className="accent-[var(--accent)]"
-              />
-              Front
-            </label>
-          </div>
-        )}
       </div>
 
       {/* Cladding */}

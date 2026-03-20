@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid } from "@react-three/drei";
+import { Raycaster } from "three";
 import ContainerModel from "./ContainerModel";
 import useConfigStore, { CONTAINER, WALL_DIMS } from "../store/useConfigStore";
 
@@ -38,41 +39,88 @@ function worldToWallLocal(wallName, point) {
   }
 }
 
-function SceneClickHandler({ onWallClick }) {
-  const { raycaster, scene, camera, pointer } = useThree();
+function DragHandler({ dragging, onDragMove, onDragEnd }) {
+  const { camera, scene, gl } = useThree();
+  const rayRef = useRef(null);
+  if (!rayRef.current) rayRef.current = new Raycaster();
 
-  return (
-    <mesh
-      visible={false}
-      onPointerDown={() => {}}
-    />
-  );
+  useEffect(() => {
+    if (!dragging) return;
+    const canvas = gl.domElement;
+    const ray = rayRef.current;
+
+    const onMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouse = {
+        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        y: -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      };
+      ray.setFromCamera(mouse, camera);
+      const wallMeshes = [];
+      scene.traverse((obj) => {
+        if (obj.isMesh && obj.userData?.wall === dragging.wall && !obj.userData?.elementId) {
+          wallMeshes.push(obj);
+        }
+      });
+      const hits = ray.intersectObjects(wallMeshes, false);
+      if (hits.length > 0) {
+        onDragMove(worldToWallLocal(dragging.wall, hits[0].point));
+      }
+    };
+
+    const onUp = () => onDragEnd();
+
+    canvas.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      canvas.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [dragging, onDragMove, onDragEnd, camera, scene, gl]);
+
+  return null;
 }
 
-function ClickableScene({ onWallClick }) {
+function ClickableScene({ onWallClick, onDragStart, dragging }) {
   const placementMode = useConfigStore((s) => s.placementMode);
 
-  const handleClick = useCallback(
+  const handlePointerDown = useCallback(
     (event) => {
-      if (placementMode !== "pending") return;
-      // Walk up the event chain to find which wall was hit
+      if (placementMode === "pending") {
+        let obj = event.object;
+        while (obj) {
+          if (obj.userData?.wall && !obj.userData?.elementId) {
+            const wallName = obj.userData.wall;
+            const localCoords = worldToWallLocal(wallName, event.point);
+            onWallClick(wallName, localCoords);
+            event.stopPropagation();
+            return;
+          }
+          obj = obj.parent;
+        }
+        return;
+      }
+
       let obj = event.object;
       while (obj) {
-        if (obj.userData && obj.userData.wall) {
-          const wallName = obj.userData.wall;
-          const localCoords = worldToWallLocal(wallName, event.point);
-          onWallClick(wallName, localCoords);
-          event.stopPropagation();
-          return;
+        if (obj.userData?.elementId) {
+          const elements = useConfigStore.getState().elements;
+          const el = elements.find((e) => e.id === obj.userData.elementId);
+          if (el) {
+            const wallLocal = worldToWallLocal(el.wall, event.point);
+            onDragStart(el.id, el.wall, wallLocal.x - el.x, wallLocal.y - el.y);
+            event.stopPropagation();
+            return;
+          }
         }
         obj = obj.parent;
       }
     },
-    [placementMode, onWallClick]
+    [placementMode, onWallClick, onDragStart]
   );
 
   return (
-    <group onClick={handleClick}>
+    <group onPointerDown={handlePointerDown}>
       <ContainerModel />
     </group>
   );
@@ -81,10 +129,12 @@ function ClickableScene({ onWallClick }) {
 export default function Canvas3D() {
   const placementMode = useConfigStore((s) => s.placementMode);
   const placeElement = useConfigStore((s) => s.placeElement);
+  const selectElement = useConfigStore((s) => s.selectElement);
+  const updateElement = useConfigStore((s) => s.updateElement);
   const cancelPlacement = useConfigStore((s) => s.cancelPlacement);
 
-  // State for showing type-picker popup after wall click
-  const [typePicker, setTypePicker] = useState(null); // { wall, x, y, screenX, screenY }
+  const [typePicker, setTypePicker] = useState(null);
+  const [dragging, setDragging] = useState(null);
 
   const handleWallClick = useCallback(
     (wallName, localCoords) => {
@@ -108,12 +158,29 @@ export default function Canvas3D() {
     setTypePicker(null);
   }, []);
 
+  const handleDragStart = useCallback((elementId, wall, offsetX, offsetY) => {
+    selectElement(elementId);
+    setDragging({ elementId, wall, offsetX, offsetY });
+  }, [selectElement]);
+
+  const handleDragMove = useCallback((localCoords) => {
+    if (!dragging) return;
+    updateElement(dragging.elementId, {
+      x: Math.round(localCoords.x - dragging.offsetX),
+      y: Math.round(localCoords.y - dragging.offsetY),
+    });
+  }, [dragging, updateElement]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragging(null);
+  }, []);
+
   return (
     <div className="flex-1 h-full relative">
       <Canvas
         camera={{ position: [8, 5, 6], fov: 45 }}
         shadows
-        style={{ cursor: placementMode === "pending" ? "crosshair" : "auto", background: "#e2e8f0" }}
+        style={{ cursor: dragging ? "grabbing" : placementMode === "pending" ? "crosshair" : "auto", background: "#e2e8f0" }}
       >
         <ambientLight intensity={0.4} />
         <directionalLight
@@ -125,7 +192,8 @@ export default function Canvas3D() {
         />
         <directionalLight position={[-5, 5, -5]} intensity={0.3} />
 
-        <ClickableScene onWallClick={handleWallClick} />
+        <ClickableScene onWallClick={handleWallClick} onDragStart={handleDragStart} dragging={dragging} />
+        <DragHandler dragging={dragging} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
 
         <Grid
           args={[20, 20]}
@@ -142,6 +210,7 @@ export default function Canvas3D() {
 
         <OrbitControls
           makeDefault
+          enabled={!dragging}
           enableDamping
           dampingFactor={0.1}
           minDistance={3}

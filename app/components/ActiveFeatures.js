@@ -24,13 +24,12 @@ export default function ActiveFeatures() {
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
   const containerRal = useConfigStore((s) => s.containerRal);
   const cladding = useConfigStore((s) => s.cladding);
-  const containerDoor = useConfigStore((s) => s.containerDoor);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
-  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal || cladding.enabled || containerDoor.enabled;
+  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal || cladding.enabled;
 
   return (
     <aside className="w-72 min-w-72 h-full overflow-y-auto p-4 space-y-4 border-l border-[var(--border)]">
@@ -91,16 +90,6 @@ export default function ActiveFeatures() {
           values={[
             ["Retning", cladding.direction === "horizontal" ? "Liggende" : "Stående"],
             ["Farge", cladding.ral ? `RAL ${cladding.ral}` : "Standard"],
-          ]}
-        />
-      )}
-
-      {containerDoor.enabled && (
-        <FeatureRow
-          label="🚪 Containerdør"
-          values={[
-            ["Vegg", containerDoor.wall === "back" ? "Bak" : "Front"],
-            ["Type", "Standard dobbeltdør"],
           ]}
         />
       )}

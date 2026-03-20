@@ -41,15 +41,15 @@ function clamp(val, min, max) {
 function clampElement(el) {
   const wallDim = WALL_DIMS[el.wall] || { w: 6058, h: 2591 };
   if (el.type === "door") {
-    const w = clamp(el.width, 300, wallDim.w);
-    const h = clamp(el.height, 400, wallDim.h);
+    const w = clamp(el.width, 1, wallDim.w);
+    const h = clamp(el.height, 1, wallDim.h);
     const x = clamp(el.x, 0, wallDim.w - w);
     const y = clamp(el.y, 0, wallDim.h - h);
     return { ...el, x, y, width: w, height: h };
   }
   // ventilation
-  const w = clamp(el.width, 50, wallDim.w);
-  const h = clamp(el.height, 50, wallDim.h);
+  const w = clamp(el.width, 1, wallDim.w);
+  const h = clamp(el.height, 1, wallDim.h);
   const x = clamp(el.x, 0, wallDim.w - w);
   const y = clamp(el.y, 0, wallDim.h - h);
   return { ...el, x, y, width: w, height: h };
@@ -77,8 +77,6 @@ const useConfigStore = create((set, get) => ({
   containerRal: null,
 
   cladding: { enabled: false, direction: "horizontal", color: "#94a3b8", ral: null },
-
-  containerDoor: { enabled: true, wall: "back" },
 
   // Start placement mode
   startPlacement: () => set({ placementMode: "pending", selectedId: null }),
@@ -144,12 +142,6 @@ const useConfigStore = create((set, get) => ({
 
   setCladdingColor: (ral, hex) =>
     set((s) => ({ cladding: { ...s.cladding, ral, color: hex } })),
-
-  toggleContainerDoor: () =>
-    set((s) => ({ containerDoor: { ...s.containerDoor, enabled: !s.containerDoor.enabled } })),
-
-  setContainerDoorWall: (wall) =>
-    set((s) => ({ containerDoor: { ...s.containerDoor, wall } })),
 }));
 
 export default useConfigStore;
