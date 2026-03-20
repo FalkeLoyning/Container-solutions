@@ -24,6 +24,7 @@ export default function ActiveFeatures() {
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
   const containerRal = useConfigStore((s) => s.containerRal);
   const cladding = useConfigStore((s) => s.cladding);
+  const insulation = useConfigStore((s) => s.insulation);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
   const containerSize = useConfigStore((s) => s.containerSize);
   const cont = CONTAINER_SIZES[containerSize];
@@ -31,7 +32,7 @@ export default function ActiveFeatures() {
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
-  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal || cladding.enabled;
+  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal || cladding.enabled || insulation.enabled;
 
   return (
     <aside className="w-72 min-w-72 h-full overflow-y-auto p-4 space-y-4 border-l border-[var(--border)]">
@@ -92,6 +93,16 @@ export default function ActiveFeatures() {
           values={[
             ["Retning", cladding.direction === "horizontal" ? "Liggende" : "Stående"],
             ["Farge", cladding.ral ? `RAL ${cladding.ral}` : "Standard"],
+          ]}
+        />
+      )}
+
+      {insulation.enabled && (
+        <FeatureRow
+          label="🧱 Isolasjon"
+          values={[
+            ["Type", "Perforert 50 mm"],
+            ["Flater", [...insulation.walls].map((w) => WALL_LABELS[w]).join(", ") || "Ingen"],
           ]}
         />
       )}

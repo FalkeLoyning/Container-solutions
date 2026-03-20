@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import * as THREE from "three";
 import useConfigStore, { CONTAINER_SIZES, getWallDims, FORKLIFT_POCKET } from "../store/useConfigStore";
 import InteriorObjects from "./InteriorObjects";
 
@@ -480,12 +481,171 @@ function ContainerDoorOutline({ wall }) {
   );
 }
 
+// Perforated insulation panel geometry with element cutouts
+function useInsulationGeometry(panelW, panelH, depth, rects) {
+  return useMemo(() => {
+    const outer = new THREE.Shape();
+    outer.moveTo(0, 0);
+    outer.lineTo(panelW, 0);
+    outer.lineTo(panelW, panelH);
+    outer.lineTo(0, panelH);
+    outer.closePath();
+
+    // Cut out element openings
+    for (const r of rects) {
+      const xMin = Math.max(0, r.xMin);
+      const xMax = Math.min(panelW, r.xMax);
+      const yMin = Math.max(0, r.yMin);
+      const yMax = Math.min(panelH, r.yMax);
+      if (xMax <= xMin || yMax <= yMin) continue;
+      const hole = new THREE.Path();
+      hole.moveTo(xMin, yMin);
+      hole.lineTo(xMax, yMin);
+      hole.lineTo(xMax, yMax);
+      hole.lineTo(xMin, yMax);
+      hole.closePath();
+      outer.holes.push(hole);
+    }
+
+    const geo = new THREE.ExtrudeGeometry(outer, {
+      depth,
+      bevelEnabled: false,
+    });
+    return geo;
+  }, [panelW, panelH, depth, rects]);
+}
+
+// Create a repeating perforation alpha texture (procedural)
+function usePerforationTexture() {
+  return useMemo(() => {
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    // Fill white (opaque)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    // Draw dark circle in center (hole = transparent)
+    ctx.fillStyle = "#000000";
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.NearestFilter;
+    return tex;
+  }, []);
+}
+
+// Insulation rendered on the inside face of walls / ceiling
+function InsulationPanels({ insulation, elements }) {
+  const { L, W, H, T, F } = useDims();
+  const wallH = H - F;
+  const depth = 0.05; // 50mm
+  const insulColor = "#e8e8e0";
+
+  // For each wall, compute element cutout rects (same coords as cladding but inner side)
+  const wallDefs = [
+    { name: "back",  panelW: W, panelH: wallH },
+    { name: "front", panelW: W, panelH: wallH },
+    { name: "left",  panelW: L, panelH: wallH },
+    { name: "right", panelW: L, panelH: wallH },
+    { name: "roof",  panelW: L, panelH: W },
+  ];
+
+  return (
+    <group>
+      {wallDefs.filter((w) => insulation.walls.has(w.name)).map((wall) => {
+        const rects = elements
+          .filter((el) => el.wall === wall.name)
+          .map((el) => elementToCladdingRect(wall.name, el, { L, W }));
+        return (
+          <InsulationPanel
+            key={wall.name}
+            wallName={wall.name}
+            panelW={wall.panelW}
+            panelH={wall.panelH}
+            depth={depth}
+            rects={rects}
+            color={insulColor}
+            L={L} W={W} H={H} T={T} F={F}
+          />
+        );
+      })}
+    </group>
+  );
+}
+
+function InsulationPanel({ wallName, panelW, panelH, depth, rects, color, L, W, H, T, F }) {
+  const geometry = useInsulationGeometry(panelW, panelH, depth, rects);
+  const alphaMap = usePerforationTexture();
+
+  // Repeat the perforation pattern based on panel size (one hole every ~25mm)
+  const repeatX = Math.round(panelW / 0.025);
+  const repeatY = Math.round(panelH / 0.025);
+  const material = useMemo(() => {
+    const tex = alphaMap.clone();
+    tex.repeat.set(repeatX, repeatY);
+    tex.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.4,
+      roughness: 0.3,
+      alphaMap: tex,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    });
+  }, [alphaMap, repeatX, repeatY, color]);
+  const wallH = H - F;
+
+  // Position panel on inner face of each wall
+  // ExtrudeGeometry goes in +Z from the shape plane
+  let position, rotation;
+  switch (wallName) {
+    case "back":
+      // Inner face of back wall: X = T/2, panel spans Z (width) and Y (height)
+      position = [T / 2, F, 0];
+      rotation = [0, Math.PI / 2, 0];
+      break;
+    case "front":
+      // Inner face of front wall: X = L - T/2, panel faces -X
+      position = [L - T / 2, F, W];
+      rotation = [0, -Math.PI / 2, 0];
+      break;
+    case "left":
+      // Inner face of left wall: Z = T/2, panel faces +Z
+      position = [0, F, T / 2];
+      rotation = [0, 0, 0];
+      break;
+    case "right":
+      // Inner face of right wall: Z = W - T/2, panel faces -Z
+      position = [L, F, W - T / 2];
+      rotation = [0, Math.PI, 0];
+      break;
+    case "roof":
+      // Inner face of roof: Y = H - T/2, panel faces downward
+      position = [0, H - T / 2, 0];
+      rotation = [-Math.PI / 2, 0, 0];
+      break;
+    default:
+      position = [0, 0, 0];
+      rotation = [0, 0, 0];
+  }
+
+  return (
+    <mesh geometry={geometry} material={material} position={position} rotation={rotation} />
+  );
+}
+
 export default function ContainerModel() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const elements = useConfigStore((s) => s.elements);
   const cladding = useConfigStore((s) => s.cladding);
   const hiddenWalls = useConfigStore((s) => s.hiddenWalls);
   const containerDoor = useConfigStore((s) => s.containerDoor);
+  const insulation = useConfigStore((s) => s.insulation);
   const { L, W, H, T, F } = useDims();
   const wallH = H - F; // internal wall height (above floor)
 
@@ -507,6 +667,8 @@ export default function ContainerModel() {
       {!isHidden("roof") && (slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />)}
 
       {cladding.enabled && <Cladding cladding={cladding} elements={elements} hiddenWalls={hiddenWalls} />}
+
+      {insulation.enabled && <InsulationPanels insulation={insulation} elements={elements} />}
 
       {containerDoor.enabled && <ContainerDoorOutline wall={containerDoor.wall} />}
 

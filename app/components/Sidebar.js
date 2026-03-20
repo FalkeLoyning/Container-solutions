@@ -224,6 +224,9 @@ export default function Sidebar() {
   const toggleCladding = useConfigStore((s) => s.toggleCladding);
   const setCladdingDirection = useConfigStore((s) => s.setCladdingDirection);
   const setCladdingColor = useConfigStore((s) => s.setCladdingColor);
+  const insulation = useConfigStore((s) => s.insulation);
+  const toggleInsulation = useConfigStore((s) => s.toggleInsulation);
+  const toggleInsulationWall = useConfigStore((s) => s.toggleInsulationWall);
   const containerSize = useConfigStore((s) => s.containerSize);
   const setContainerSize = useConfigStore((s) => s.setContainerSize);
   const cont = CONTAINER_SIZES[containerSize];
@@ -606,6 +609,37 @@ export default function Sidebar() {
               </button>
             )}
           </>
+        )}
+      </div>
+
+      {/* Insulation */}
+      <div className="pt-4 border-t border-[var(--border)] space-y-3">
+        <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          🧱 Isolasjon
+        </h3>
+        <Toggle label="Perforert isolasjon (50 mm)" checked={insulation.enabled} onChange={toggleInsulation} />
+        {insulation.enabled && (
+          <div className="space-y-2 pl-1">
+            <p className="text-xs text-[var(--text-secondary)]">Velg flater med isolasjon:</p>
+            <div className="flex flex-wrap gap-2">
+              {["front", "back", "left", "right", "roof"].map((wall) => (
+                <button
+                  key={wall}
+                  onClick={() => toggleInsulationWall(wall)}
+                  className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md border transition-all ${
+                    insulation.walls.has(wall)
+                      ? "border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]"
+                      : "border-[var(--border)] bg-[var(--bg-input)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
+                  }`}
+                >
+                  {insulation.walls.has(wall) ? "✓ " : ""}{WALL_LABELS[wall]}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-[var(--text-secondary)]">
+              Utsparringer og dører skjæres automatisk ut
+            </p>
+          </div>
         )}
       </div>
     </aside>

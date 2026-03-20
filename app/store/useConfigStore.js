@@ -107,6 +107,9 @@ const useConfigStore = create((set, get) => ({
   // Container door (standard double door)
   containerDoor: { enabled: false, wall: "front" },
 
+  // Interior insulation (perforated panels, 50mm)
+  insulation: { enabled: false, walls: new Set(["front", "back", "left", "right", "roof"]) },
+
   // Interior 3D objects (STEP / GLB uploads)
   interiorObjects: [],
   selectedInteriorId: null,
@@ -203,6 +206,17 @@ const useConfigStore = create((set, get) => ({
 
   setContainerDoorWall: (wall) =>
     set((s) => ({ containerDoor: { ...s.containerDoor, wall } })),
+
+  toggleInsulation: () =>
+    set((s) => ({ insulation: { ...s.insulation, enabled: !s.insulation.enabled } })),
+
+  toggleInsulationWall: (wallName) =>
+    set((s) => {
+      const next = new Set(s.insulation.walls);
+      if (next.has(wallName)) next.delete(wallName);
+      else next.add(wallName);
+      return { insulation: { ...s.insulation, walls: next } };
+    }),
 
   // Interior objects (geometry stored in geometryCache, not in Zustand)
   addInteriorObject: ({ name, geometryData }) => {
