@@ -241,71 +241,105 @@ function getWallTransform(wall, el) {
   }
 }
 
-// Generate plank positions for one wall
-function generatePlanks(wallLength, wallHeight, direction) {
-  const plankSize = 0.15; // 150mm
-  const gap = 0.008;      // 8mm gap between planks
+// Convert element position to cladding-local rectangle (3D units)
+function elementToCladdingRect(wallName, el) {
+  const ew = el.width * S;
+  const eh = el.height * S;
+  const ey = el.y * S;
+  let ex;
+  if (wallName === "front") ex = W - (el.x + el.width) * S;
+  else if (wallName === "right") ex = L - (el.x + el.width) * S;
+  else ex = el.x * S;
+  return { xMin: ex, xMax: ex + ew, yMin: ey, yMax: ey + eh };
+}
+
+function clipSegments(segments, cutMin, cutMax) {
+  const result = [];
+  for (const [sMin, sMax] of segments) {
+    if (cutMax <= sMin || cutMin >= sMax) {
+      result.push([sMin, sMax]);
+    } else {
+      if (sMin < cutMin) result.push([sMin, cutMin]);
+      if (sMax > cutMax) result.push([cutMax, sMax]);
+    }
+  }
+  return result;
+}
+
+// Generate plank positions with cutouts for elements
+function generatePlanks(wallLength, wallHeight, direction, rects) {
+  const plankSize = 0.15;
+  const gap = 0.008;
   const step = plankSize + gap;
   const planks = [];
 
   if (direction === "horizontal") {
     const count = Math.floor(wallHeight / step);
     for (let i = 0; i < count; i++) {
-      planks.push({
-        y: plankSize / 2 + i * step,
-        size: [wallLength, plankSize],
-      });
+      const py = plankSize / 2 + i * step;
+      const pyMin = py - plankSize / 2;
+      const pyMax = py + plankSize / 2;
+      let segs = [[0, wallLength]];
+      for (const r of rects) {
+        if (r.yMin < pyMax && r.yMax > pyMin) {
+          segs = clipSegments(segs, r.xMin, r.xMax);
+        }
+      }
+      for (const [sMin, sMax] of segs) {
+        const segW = sMax - sMin;
+        if (segW > 0.005) {
+          planks.push({ x: sMin + segW / 2, y: py, size: [segW, plankSize] });
+        }
+      }
     }
   } else {
     const count = Math.floor(wallLength / step);
     for (let i = 0; i < count; i++) {
-      planks.push({
-        x: plankSize / 2 + i * step,
-        size: [plankSize, wallHeight],
-      });
+      const px = plankSize / 2 + i * step;
+      const pxMin = px - plankSize / 2;
+      const pxMax = px + plankSize / 2;
+      let segs = [[0, wallHeight]];
+      for (const r of rects) {
+        if (r.xMin < pxMax && r.xMax > pxMin) {
+          segs = clipSegments(segs, r.yMin, r.yMax);
+        }
+      }
+      for (const [sMin, sMax] of segs) {
+        const segH = sMax - sMin;
+        if (segH > 0.005) {
+          planks.push({ x: px, y: sMin + segH / 2, size: [plankSize, segH] });
+        }
+      }
     }
   }
   return planks;
 }
 
-function Cladding({ cladding }) {
+function Cladding({ cladding, elements }) {
   const { direction, color } = cladding;
-  const depth = 0.022; // plank thickness
+  const depth = 0.022;
   const off = T / 2 + depth / 2 + 0.001;
 
-  // Darken the color slightly for the gap shadow effect
   const walls = [
-    { name: "back",  len: W, h: H, pos: (p) => [-off,        p.y || H / 2, p.x || W / 2],  boxArgs: (s) => [depth, s[1], s[0]] },
-    { name: "front", len: W, h: H, pos: (p) => [L + off,     p.y || H / 2, p.x || W / 2],  boxArgs: (s) => [depth, s[1], s[0]] },
-    { name: "left",  len: L, h: H, pos: (p) => [p.x || L / 2, p.y || H / 2, -off],          boxArgs: (s) => [s[0], s[1], depth] },
-    { name: "right", len: L, h: H, pos: (p) => [p.x || L / 2, p.y || H / 2, W + off],       boxArgs: (s) => [s[0], s[1], depth] },
+    { name: "back",  len: W, h: H, pos: (p) => [-off,  p.y, p.x],  boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "front", len: W, h: H, pos: (p) => [L + off, p.y, p.x], boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "left",  len: L, h: H, pos: (p) => [p.x, p.y, -off],    boxArgs: (s) => [s[0], s[1], depth] },
+    { name: "right", len: L, h: H, pos: (p) => [p.x, p.y, W + off],  boxArgs: (s) => [s[0], s[1], depth] },
   ];
 
   return (
     <group>
       {walls.map((wall) => {
-        const planks = generatePlanks(wall.len, wall.h, direction);
-        return planks.map((plank, i) => {
-          const posData = {};
-          if (direction === "horizontal") {
-            posData.y = plank.y;
-          } else {
-            posData.x = plank.x;
-            posData.y = wall.h / 2;
-          }
-          const pos = wall.pos(posData);
-          const args = wall.boxArgs(plank.size);
-          return (
-            <mesh key={`${wall.name}-${i}`} position={pos} castShadow>
-              <boxGeometry args={args} />
-              <meshStandardMaterial
-                color={color}
-                metalness={0.1}
-                roughness={0.85}
-              />
-            </mesh>
-          );
-        });
+        const rects = elements
+          .filter((el) => el.wall === wall.name)
+          .map((el) => elementToCladdingRect(wall.name, el));
+        const planks = generatePlanks(wall.len, wall.h, direction, rects);
+        return planks.map((plank, i) => (
+          <mesh key={`${wall.name}-${i}`} position={wall.pos(plank)} castShadow>
+            <boxGeometry args={wall.boxArgs(plank.size)} />
+            <meshStandardMaterial color={color} metalness={0.1} roughness={0.85} />
+          </mesh>
+        ));
       })}
     </group>
   );
@@ -337,7 +371,7 @@ export default function ContainerModel() {
       {slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />}
 
       {/* Cladding */}
-      {cladding.enabled && <Cladding cladding={cladding} />}
+      {cladding.enabled && <Cladding cladding={cladding} elements={elements} />}
 
       {/* Render all elements */}
       {elements.map((el) =>
