@@ -10,12 +10,13 @@ const W = CONTAINER.width * S;
 const H = CONTAINER.height * S;
 const T = CONTAINER.wallThickness * S;
 
-const steelColor = "#6b7280";
-const steelDark = "#4b5563";
-const doorColor = "#92400e";
-const ventColor = "#1e1e1e";
-const aluminumColor = "#c0c0c0";
-const highlightColor = "#38bdf8";
+const steelColor = "#94a3b8";
+const steelDark = "#78909c";
+const doorColor = "#b45309";
+const ventColor = "#1e293b";
+const aluminumColor = "#d4d4d8";
+const highlightColor = "#0284c7";
+const holeColor = "#0f172a";
 
 // Element type picker shown after clicking a wall
 function WallClickMenu({ position, onSelect, onCancel }) {
@@ -37,11 +38,11 @@ function ClickableWall({ wallName, position, size, rotation, children }) {
     >
       <boxGeometry args={size} />
       <meshStandardMaterial
-        color={isPlacing ? "#475569" : steelColor}
-        metalness={0.4}
-        roughness={0.6}
+        color={isPlacing ? "#b0bec5" : steelColor}
+        metalness={0.3}
+        roughness={0.55}
         emissive={isPlacing ? highlightColor : "#000000"}
-        emissiveIntensity={isPlacing ? 0.08 : 0}
+        emissiveIntensity={isPlacing ? 0.12 : 0}
       />
       {children}
     </mesh>
@@ -121,32 +122,35 @@ function DoorMesh({ el }) {
   );
 }
 
-// Render a ventilation cutout on a wall
+// Render a ventilation cutout (hole) on a wall
 function VentMesh({ el }) {
   const selectedId = useConfigStore((s) => s.selectedId);
   const isSelected = selectedId === el.id;
   const { pos, rot } = getWallTransform(el.wall, el);
-  const sz = el.size * S;
+  const vw = el.width * S;
+  const vh = el.height * S;
 
   return (
     <group>
+      {/* Dark hole */}
       <mesh position={pos} rotation={rot}>
         {el.shape === "circle" ? (
-          <circleGeometry args={[sz / 2, 32]} />
+          <circleGeometry args={[Math.min(vw, vh) / 2, 32]} />
         ) : (
-          <planeGeometry args={[sz, sz]} />
+          <planeGeometry args={[vw, vh]} />
         )}
-        <meshBasicMaterial color="#000000" />
+        <meshBasicMaterial color={holeColor} />
       </mesh>
+      {/* Rim / frame around the hole */}
       <mesh position={pos} rotation={rot}>
         {el.shape === "circle" ? (
-          <ringGeometry args={[sz / 2 - 0.015, sz / 2, 32]} />
+          <ringGeometry args={[Math.min(vw, vh) / 2 - 0.008, Math.min(vw, vh) / 2 + 0.008, 32]} />
         ) : (
-          <planeGeometry args={[sz - 0.015, sz - 0.015]} />
+          <planeGeometry args={[vw + 0.016, vh + 0.016]} />
         )}
         <meshStandardMaterial
           color={isSelected ? highlightColor : ventColor}
-          metalness={0.6}
+          metalness={0.5}
           roughness={0.4}
           emissive={isSelected ? highlightColor : "#000000"}
           emissiveIntensity={isSelected ? 0.2 : 0}
@@ -159,9 +163,8 @@ function VentMesh({ el }) {
 // Convert element position (wall-local mm, origin bottom-left when viewed from outside)
 // to 3D world position + rotation
 function getWallTransform(wall, el) {
-  const isVent = el.type === "ventilation";
-  const elW = isVent ? el.size * S : el.width * S;
-  const elH = isVent ? el.size * S : el.height * S;
+  const elW = el.width * S;
+  const elH = el.height * S;
   const cx = el.x * S + elW / 2; // center X in wall-local coords
   const cy = el.y * S + elH / 2; // center Y in wall-local coords
   const offset = T / 2 + 0.002;

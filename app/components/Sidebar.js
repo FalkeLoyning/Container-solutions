@@ -80,14 +80,14 @@ function ElementEditor({ el }) {
         value={el.x}
         onChange={(v) => updateElement(el.id, { x: v })}
         min={0}
-        max={el.type === "door" ? wallDim.w - el.width : wallDim.w - el.size}
+        max={wallDim.w - el.width}
       />
       <NumberInput
         label="Y – avstand fra bunn"
         value={el.y}
         onChange={(v) => updateElement(el.id, { y: v })}
         min={0}
-        max={el.type === "door" ? wallDim.h - el.height : wallDim.h - el.size}
+        max={wallDim.h - el.height}
       />
 
       {el.type === "door" && (
@@ -112,11 +112,18 @@ function ElementEditor({ el }) {
       {el.type === "ventilation" && (
         <>
           <NumberInput
-            label="Størrelse"
-            value={el.size}
-            onChange={(v) => updateElement(el.id, { size: v })}
+            label="Bredde"
+            value={el.width}
+            onChange={(v) => updateElement(el.id, { width: v })}
             min={50}
-            max={Math.min(wallDim.w, wallDim.h)}
+            max={wallDim.w}
+          />
+          <NumberInput
+            label="Høyde"
+            value={el.height}
+            onChange={(v) => updateElement(el.id, { height: v })}
+            min={50}
+            max={wallDim.h}
           />
           <div className="flex gap-3">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -131,11 +138,11 @@ function ElementEditor({ el }) {
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="radio"
-                checked={el.shape === "square"}
-                onChange={() => updateElement(el.id, { shape: "square" })}
+                checked={el.shape === "rectangle"}
+                onChange={() => updateElement(el.id, { shape: "rectangle" })}
                 className="accent-[var(--accent)]"
               />
-              Firkant
+              Rektangel
             </label>
           </div>
         </>
@@ -166,9 +173,7 @@ function ElementCard({ el, isSelected }) {
         </span>
       </div>
       <div className="text-xs text-[var(--text-secondary)]">
-        Pos: ({el.x}, {el.y}) mm
-        {el.type === "door" && ` · ${el.width}×${el.height}`}
-        {el.type === "ventilation" && ` · ${el.shape === "circle" ? "Ø" : "□"}${el.size}`}
+        Pos: ({el.x}, {el.y}) mm · {el.width}×{el.height}
       </div>
 
       {isSelected && (

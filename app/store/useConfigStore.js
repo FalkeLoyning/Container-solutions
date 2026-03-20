@@ -30,10 +30,11 @@ function clampElement(el) {
     return { ...el, x, y, width: w, height: h };
   }
   // ventilation
-  const size = clamp(el.size, 50, Math.min(wallDim.w, wallDim.h));
-  const x = clamp(el.x, 0, wallDim.w - size);
-  const y = clamp(el.y, 0, wallDim.h - size);
-  return { ...el, x, y, size };
+  const w = clamp(el.width, 50, wallDim.w);
+  const h = clamp(el.height, 50, wallDim.h);
+  const x = clamp(el.x, 0, wallDim.w - w);
+  const y = clamp(el.y, 0, wallDim.h - h);
+  return { ...el, x, y, width: w, height: h };
 }
 
 let nextId = 1;
@@ -73,7 +74,7 @@ const useConfigStore = create((set, get) => ({
       el = clampElement({
         ...base, type: "ventilation",
         x: Math.round(clickX), y: Math.round(clickY),
-        size: 300, shape: "circle",
+        width: 400, height: 300, shape: "rectangle",
       });
     }
     set((s) => ({

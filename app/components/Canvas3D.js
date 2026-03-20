@@ -113,8 +113,7 @@ export default function Canvas3D() {
       <Canvas
         camera={{ position: [8, 5, 6], fov: 45 }}
         shadows
-        className="!bg-transparent"
-        style={{ cursor: placementMode === "pending" ? "crosshair" : "auto" }}
+        style={{ cursor: placementMode === "pending" ? "crosshair" : "auto", background: "#e2e8f0" }}
       >
         <ambientLight intensity={0.4} />
         <directionalLight
@@ -194,7 +193,7 @@ export default function Canvas3D() {
               >
                 <div className="text-2xl mb-1">🌀</div>
                 <div className="text-sm font-semibold group-hover:text-[var(--accent)]">Ventilasjon</div>
-                <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Ø300 mm</div>
+                <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">400 × 300 mm</div>
               </button>
             </div>
             <button
@@ -208,7 +207,7 @@ export default function Canvas3D() {
       )}
 
       {/* Bottom hint */}
-      <div className="absolute bottom-4 left-4 text-xs text-[var(--text-secondary)] bg-[var(--bg-primary)]/80 px-3 py-1.5 rounded-lg backdrop-blur-sm">
+      <div className="absolute bottom-4 left-4 text-xs text-[var(--text-secondary)] bg-white/80 px-3 py-1.5 rounded-lg backdrop-blur-sm shadow-sm">
         Klikk og dra for å rotere · Scroll for å zoome
       </div>
     </div>

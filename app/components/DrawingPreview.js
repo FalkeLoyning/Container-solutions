@@ -84,22 +84,24 @@ function WallElements({ elements, wallName, viewW, viewH, flip = false }) {
       );
     }
     // ventilation
-    const sz = el.size * SC;
+    const vw = el.width * SC;
+    const vh = el.height * SC;
     if (el.shape === "circle") {
+      const r = Math.min(vw, vh) / 2;
       return (
         <g key={el.id}>
           <circle
-            cx={flip ? x - sz / 2 : x + sz / 2}
-            cy={y - sz / 2}
-            r={sz / 2}
+            cx={flip ? x - vw / 2 : x + vw / 2}
+            cy={y - vh / 2}
+            r={r}
             fill="none"
-            stroke="#60a5fa"
+            stroke="#2563eb"
             strokeWidth={1.5}
           />
           <text
-            x={flip ? x - sz / 2 : x + sz / 2}
-            y={y - sz / 2}
-            fill="#e2e8f0"
+            x={flip ? x - vw / 2 : x + vw / 2}
+            y={y - vh / 2}
+            fill="#1e293b"
             fontSize={6}
             textAnchor="middle"
             dominantBaseline="middle"
@@ -112,18 +114,18 @@ function WallElements({ elements, wallName, viewW, viewH, flip = false }) {
     return (
       <g key={el.id}>
         <rect
-          x={flip ? x - sz : x}
-          y={y - sz}
-          width={sz}
-          height={sz}
+          x={flip ? x - vw : x}
+          y={y - vh}
+          width={vw}
+          height={vh}
           fill="none"
-          stroke="#60a5fa"
+          stroke="#2563eb"
           strokeWidth={1.5}
         />
         <text
-          x={flip ? x - sz / 2 : x + sz / 2}
-          y={y - sz / 2}
-          fill="#e2e8f0"
+          x={flip ? x - vw / 2 : x + vw / 2}
+          y={y - vh / 2}
+          fill="#1e293b"
           fontSize={6}
           textAnchor="middle"
           dominantBaseline="middle"
@@ -198,8 +200,8 @@ function TopView({ elements, slopedRoof }) {
             x={w - 4}
             y={el.x * SC}
             width={6}
-            height={(el.type === "door" ? el.width : el.size) * SC}
-            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            height={el.width * SC}
+            fill={el.type === "door" ? "#92400e" : "#2563eb"}
             fillOpacity={0.6}
           />
         ))}
@@ -211,8 +213,8 @@ function TopView({ elements, slopedRoof }) {
             x={-2}
             y={el.x * SC}
             width={6}
-            height={(el.type === "door" ? el.width : el.size) * SC}
-            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            height={el.width * SC}
+            fill={el.type === "door" ? "#92400e" : "#2563eb"}
             fillOpacity={0.6}
           />
         ))}
@@ -223,9 +225,9 @@ function TopView({ elements, slopedRoof }) {
             key={el.id}
             x={el.x * SC}
             y={-2}
-            width={(el.type === "door" ? el.width : el.size) * SC}
+            width={el.width * SC}
             height={6}
-            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            fill={el.type === "door" ? "#92400e" : "#2563eb"}
             fillOpacity={0.6}
           />
         ))}
@@ -234,11 +236,11 @@ function TopView({ elements, slopedRoof }) {
         {rightEls.map((el) => (
           <rect
             key={el.id}
-            x={(CL - el.x) * SC - (el.type === "door" ? el.width : el.size) * SC}
+            x={(CL - el.x) * SC - el.width * SC}
             y={h - 4}
-            width={(el.type === "door" ? el.width : el.size) * SC}
+            width={el.width * SC}
             height={6}
-            fill={el.type === "door" ? "#92400e" : "#60a5fa"}
+            fill={el.type === "door" ? "#92400e" : "#2563eb"}
             fillOpacity={0.6}
           />
         ))}
@@ -344,7 +346,7 @@ export default function DrawingPreview() {
               {vents.map((v) => (
                 <div key={v.id} className="text-xs grid grid-cols-2 gap-x-8">
                   <span className="text-[var(--text-secondary)]">#{v.id} ({WALL_LABELS[v.wall]}):</span>
-                  <span>{v.shape === "circle" ? "Ø" : "□"}{v.size} mm @ ({v.x}, {v.y})</span>
+                  <span>{v.width} × {v.height} mm ({v.shape === "circle" ? "sirkel" : "rekt."}) @ ({v.x}, {v.y})</span>
                 </div>
               ))}
             </div>

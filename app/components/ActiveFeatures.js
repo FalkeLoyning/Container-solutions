@@ -58,7 +58,8 @@ export default function ActiveFeatures() {
           values={[
             ["Vegg", WALL_LABELS[el.wall]],
             ["Posisjon", `(${el.x}, ${el.y}) mm`],
-            ["Størrelse", `${el.shape === "circle" ? "Ø" : "□"}${el.size} mm`],
+            ["Bredde × Høyde", `${el.width} × ${el.height} mm`],
+            ["Form", el.shape === "circle" ? "Sirkel" : "Rektangel"],
           ]}
         />
       ))}
