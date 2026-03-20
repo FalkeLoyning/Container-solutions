@@ -257,7 +257,7 @@ export default function Sidebar({ userId, orgId }) {
 
   // Load STEP library files
   useEffect(() => {
-    if (!userId || !showLibrary) return;
+    if (!supabase || !userId || !showLibrary) return;
     (async () => {
       let query = supabase
         .from("step_library")
@@ -274,7 +274,7 @@ export default function Sidebar({ userId, orgId }) {
   }, [userId, orgId, showLibrary]);
 
   const saveToLibrary = async (file) => {
-    if (!userId) return;
+    if (!supabase || !userId) return;
     const path = `${userId}/${Date.now()}_${file.name}`;
     const { error: upErr } = await supabase.storage.from("step-files").upload(path, file);
     if (upErr) { console.error("Upload failed:", upErr); return; }
@@ -295,6 +295,7 @@ export default function Sidebar({ userId, orgId }) {
   };
 
   const loadFromLibrary = async (entry) => {
+    if (!supabase) return;
     setUploading(true);
     try {
       const { data, error } = await supabase.storage.from("step-files").download(entry.storage_path);

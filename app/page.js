@@ -16,15 +16,16 @@ const Canvas3D = dynamic(() => import("./components/Canvas3D"), { ssr: false });
 export default function Home() {
   const showDrawing = useConfigStore((s) => s.showDrawing);
 
-  const [session, setSession] = useState(undefined); // undefined = loading
+  const [session, setSession] = useState(supabase ? undefined : null); // undefined = loading, null = no auth
   const [orgId, setOrgId] = useState(null);
   const [orgName, setOrgName] = useState(null);
   const [showOrgManager, setShowOrgManager] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [projectDialogTab, setProjectDialogTab] = useState("save");
 
-  // Auth listener
+  // Auth listener (only if Supabase is configured)
   useEffect(() => {
+    if (!supabase) return;
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => subscription.unsubscribe();
@@ -32,7 +33,7 @@ export default function Home() {
 
   // Load user's first org
   useEffect(() => {
-    if (!session?.user) { setOrgId(null); setOrgName(null); return; }
+    if (!supabase || !session?.user) { setOrgId(null); setOrgName(null); return; }
     (async () => {
       const { data } = await supabase
         .from("org_members")
@@ -48,7 +49,7 @@ export default function Home() {
   }, [session?.user?.id]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (supabase) await supabase.auth.signOut();
     setSession(null);
   };
 
@@ -61,59 +62,62 @@ export default function Home() {
     );
   }
 
-  // Not logged in
-  if (!session) {
+  // Not logged in (but Supabase is configured)
+  if (!session && supabase) {
     return <LoginScreen onLogin={() => {}} />;
   }
 
-  const userId = session.user.id;
-  const userEmail = session.user.email;
+  const loggedIn = !!session;
+  const userId = session?.user?.id || null;
+  const userEmail = session?.user?.email || null;
 
   return (
     <div className="h-screen w-screen overflow-hidden">
-      {/* Top header bar */}
-      <div
-        className="fixed top-0 left-80 right-72 h-10 z-30 flex items-center justify-between px-4 border-b"
-        style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
-      >
-        <div className="flex items-center gap-3 text-xs">
-          <span>👤 {userEmail}</span>
-          {orgName && (
-            <button
-              onClick={() => setShowOrgManager(true)}
-              className="px-2 py-0.5 rounded border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors cursor-pointer"
-            >
-              🏢 {orgName}
-            </button>
-          )}
-          {!orgName && (
-            <button
-              onClick={() => setShowOrgManager(true)}
-              className="px-2 py-0.5 rounded border border-dashed border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors cursor-pointer"
-            >
-              + Organisasjon
-            </button>
-          )}
-        </div>
-        <button
-          onClick={handleLogout}
-          className="text-xs opacity-60 hover:opacity-100 hover:text-red-400 transition-colors cursor-pointer"
+      {/* Top header bar (only when logged in) */}
+      {loggedIn && (
+        <div
+          className="fixed top-0 left-80 right-72 h-10 z-30 flex items-center justify-between px-4 border-b"
+          style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
-          Logg ut
-        </button>
-      </div>
+          <div className="flex items-center gap-3 text-xs">
+            <span>👤 {userEmail}</span>
+            {orgName && (
+              <button
+                onClick={() => setShowOrgManager(true)}
+                className="px-2 py-0.5 rounded border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors cursor-pointer"
+              >
+                🏢 {orgName}
+              </button>
+            )}
+            {!orgName && (
+              <button
+                onClick={() => setShowOrgManager(true)}
+                className="px-2 py-0.5 rounded border border-dashed border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors cursor-pointer"
+              >
+                + Organisasjon
+              </button>
+            )}
+          </div>
+          <button
+            onClick={handleLogout}
+            className="text-xs opacity-60 hover:opacity-100 hover:text-red-400 transition-colors cursor-pointer"
+          >
+            Logg ut
+          </button>
+        </div>
+      )}
 
       {/* Left panel */}
       <Sidebar userId={userId} orgId={orgId} />
 
       {/* Center – 3D Viewer */}
-      <div className="fixed top-10 bottom-0 left-80 right-72">
+      <div className={`fixed ${loggedIn ? "top-10" : "top-0"} bottom-0 left-80 right-72`}>
         <Canvas3D />
       </div>
 
       {/* Right panel */}
       <ActiveFeatures
-        loggedIn
+        loggedIn={loggedIn}
         onSaveProject={() => { setProjectDialogTab("save"); setShowProjectDialog(true); }}
         onLoadProject={() => { setProjectDialogTab("load"); setShowProjectDialog(true); }}
       />
