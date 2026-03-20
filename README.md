@@ -9,16 +9,16 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173)
+Open [http://localhost:3000](http://localhost:3000)
 
 ## What's Included
 
 - Dashboard with container metrics
 - Container list with start/stop/remove actions
-- Create new containers via dialog
+- Create new containers via modal dialog
 - All data is mock – no backend needed
 
 ## Tech Stack
 
-- **Vite** – fast dev server & build
-- **Vanilla JS** – no framework, easy to extend
+- **Next.js 15** – React framework with App Router
+- **React 19** – UI components
