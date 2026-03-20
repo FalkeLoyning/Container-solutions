@@ -78,6 +78,12 @@ const useConfigStore = create((set, get) => ({
 
   cladding: { enabled: false, direction: "horizontal", color: "#94a3b8", ral: null },
 
+  // Section view: which walls are hidden
+  hiddenWalls: new Set(),
+
+  // Container door (standard double door)
+  containerDoor: { enabled: false, wall: "front" },
+
   // Start placement mode
   startPlacement: () => set({ placementMode: "pending", selectedId: null }),
   cancelPlacement: () => set({ placementMode: null }),
@@ -142,6 +148,20 @@ const useConfigStore = create((set, get) => ({
 
   setCladdingColor: (ral, hex) =>
     set((s) => ({ cladding: { ...s.cladding, ral, color: hex } })),
+
+  toggleWallVisibility: (wallName) =>
+    set((s) => {
+      const next = new Set(s.hiddenWalls);
+      if (next.has(wallName)) next.delete(wallName);
+      else next.add(wallName);
+      return { hiddenWalls: next };
+    }),
+
+  toggleContainerDoor: () =>
+    set((s) => ({ containerDoor: { ...s.containerDoor, enabled: !s.containerDoor.enabled } })),
+
+  setContainerDoorWall: (wall) =>
+    set((s) => ({ containerDoor: { ...s.containerDoor, wall } })),
 }));
 
 export default useConfigStore;

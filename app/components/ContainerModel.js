@@ -315,7 +315,7 @@ function generatePlanks(wallLength, wallHeight, direction, rects) {
   return planks;
 }
 
-function Cladding({ cladding, elements }) {
+function Cladding({ cladding, elements, hiddenWalls }) {
   const { direction, color } = cladding;
   const depth = 0.022;
   const off = T / 2 + depth / 2 + 0.001;
@@ -329,7 +329,7 @@ function Cladding({ cladding, elements }) {
 
   return (
     <group>
-      {walls.map((wall) => {
+      {walls.filter((w) => !hiddenWalls.has(w.name)).map((wall) => {
         const rects = elements
           .filter((el) => el.wall === wall.name)
           .map((el) => elementToCladdingRect(wall.name, el));
@@ -345,10 +345,61 @@ function Cladding({ cladding, elements }) {
   );
 }
 
+// Container door outline rendered on top of cladding
+function ContainerDoorOutline({ wall }) {
+  // Standard container double door: full width, full height of a short wall
+  const doorW = W;   // full container width
+  const doorH = H;   // full container height
+  const lineW = 0.015; // frame line thickness
+  const off = T / 2 + 0.025 + 0.001; // just outside cladding
+
+  const frameMat = <meshBasicMaterial color="#ffffff" />;
+  const handleMat = <meshBasicMaterial color="#e2e8f0" />;
+
+  // Position based on wall
+  let pos, rotY;
+  if (wall === "front") { pos = [L + off, H / 2, W / 2]; rotY = Math.PI / 2; }
+  else if (wall === "back") { pos = [-off, H / 2, W / 2]; rotY = -Math.PI / 2; }
+  else return null;
+
+  return (
+    <group position={pos} rotation={[0, rotY, 0]}>
+      {/* Outer frame */}
+      <mesh position={[0, doorH / 2 - lineW / 2, 0]}>
+        <planeGeometry args={[doorW, lineW]} />{frameMat}
+      </mesh>
+      <mesh position={[0, -doorH / 2 + lineW / 2, 0]}>
+        <planeGeometry args={[doorW, lineW]} />{frameMat}
+      </mesh>
+      <mesh position={[-doorW / 2 + lineW / 2, 0, 0]}>
+        <planeGeometry args={[lineW, doorH]} />{frameMat}
+      </mesh>
+      <mesh position={[doorW / 2 - lineW / 2, 0, 0]}>
+        <planeGeometry args={[lineW, doorH]} />{frameMat}
+      </mesh>
+      {/* Center split line */}
+      <mesh position={[0, 0, 0]}>
+        <planeGeometry args={[lineW, doorH - lineW * 2]} />{frameMat}
+      </mesh>
+      {/* Door handles */}
+      <mesh position={[-0.06, H * 0.42, 0.001]}>
+        <planeGeometry args={[0.03, 0.12]} />{handleMat}
+      </mesh>
+      <mesh position={[0.06, H * 0.42, 0.001]}>
+        <planeGeometry args={[0.03, 0.12]} />{handleMat}
+      </mesh>
+    </group>
+  );
+}
+
 export default function ContainerModel() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const elements = useConfigStore((s) => s.elements);
   const cladding = useConfigStore((s) => s.cladding);
+  const hiddenWalls = useConfigStore((s) => s.hiddenWalls);
+  const containerDoor = useConfigStore((s) => s.containerDoor);
+
+  const isHidden = (w) => hiddenWalls.has(w);
 
 
   return (
@@ -356,22 +407,25 @@ export default function ContainerModel() {
       <Floor />
 
       {/* Back wall (x=0) */}
-      <ClickableWall wallName="back" position={[0, H / 2, W / 2]} size={[T, H, W]} />
+      {!isHidden("back") && <ClickableWall wallName="back" position={[0, H / 2, W / 2]} size={[T, H, W]} />}
 
       {/* Left wall (z=0) */}
-      <ClickableWall wallName="left" position={[L / 2, H / 2, 0]} size={[L, H, T]} />
+      {!isHidden("left") && <ClickableWall wallName="left" position={[L / 2, H / 2, 0]} size={[L, H, T]} />}
 
       {/* Right wall (z=W) */}
-      <ClickableWall wallName="right" position={[L / 2, H / 2, W]} size={[L, H, T]} />
+      {!isHidden("right") && <ClickableWall wallName="right" position={[L / 2, H / 2, W]} size={[L, H, T]} />}
 
       {/* Front wall (x=L) */}
-      <ClickableWall wallName="front" position={[L, H / 2, W / 2]} size={[T, H, W]} />
+      {!isHidden("front") && <ClickableWall wallName="front" position={[L, H / 2, W / 2]} size={[T, H, W]} />}
 
       {/* Roof */}
       {slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />}
 
       {/* Cladding */}
-      {cladding.enabled && <Cladding cladding={cladding} elements={elements} />}
+      {cladding.enabled && <Cladding cladding={cladding} elements={elements} hiddenWalls={hiddenWalls} />}
+
+      {/* Container door outline on cladding */}
+      {containerDoor.enabled && <ContainerDoorOutline wall={containerDoor.wall} />}
 
       {/* Render all elements */}
       {elements.map((el) =>
