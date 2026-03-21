@@ -236,9 +236,9 @@ export default function Canvas3D() {
   );
 
   const handleTypeSelect = useCallback(
-    (type) => {
+    (type, opts) => {
       if (typePicker) {
-        placeElement(typePicker.wall, type, typePicker.x, typePicker.y);
+        placeElement(typePicker.wall, type, typePicker.x, typePicker.y, opts);
       }
       setTypePicker(null);
     },
@@ -337,19 +337,28 @@ export default function Canvas3D() {
               </strong>
               {" · "}Pos: ({typePicker.x}, {typePicker.y}) mm
             </p>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => handleTypeSelect("door")}
-                className="flex-1 py-4 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]
+                onClick={() => handleTypeSelect("door", { doorWidth: 1000, doorHeight: 2100 })}
+                className="py-4 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]
                   hover:border-[var(--accent)] hover:bg-[var(--accent)]/10 transition-all text-center group"
               >
                 <div className="text-2xl mb-1">🚪</div>
-                <div className="text-sm font-semibold group-hover:text-[var(--accent)]">Dør</div>
-                <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">1000 × 2100 mm</div>
+                <div className="text-sm font-semibold group-hover:text-[var(--accent)]">Enkel dør</div>
+                <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">1000 × 2100</div>
+              </button>
+              <button
+                onClick={() => handleTypeSelect("door", { doorWidth: 2000, doorHeight: 2100 })}
+                className="py-4 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]
+                  hover:border-[var(--accent)] hover:bg-[var(--accent)]/10 transition-all text-center group"
+              >
+                <div className="text-2xl mb-1">🚪🚪</div>
+                <div className="text-sm font-semibold group-hover:text-[var(--accent)]">Dobbel dør</div>
+                <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">2000 × 2100</div>
               </button>
               <button
                 onClick={() => handleTypeSelect("ventilation")}
-                className="flex-1 py-4 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]
+                className="col-span-2 py-4 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]
                   hover:border-[var(--accent)] hover:bg-[var(--accent)]/10 transition-all text-center group"
               >
                 <div className="text-2xl mb-1">🌀</div>

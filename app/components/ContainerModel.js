@@ -399,33 +399,103 @@ function HupFrame({ innerW, innerH, isSelected }) {
   );
 }
 
+// Single door leaf with recessed panel + handle
+function DoorLeaf({ leafW, leafH, xOff, containerColor, isSelected, handleSide }) {
+  const gap = 0.003;
+  const panelInset = 0.012;
+  const panelH1 = leafH * 0.38;
+  const panelH2 = leafH * 0.48;
+  const panelGap = leafH * 0.04;
+  const panelW = leafW - panelInset * 2;
+  const panelY1 = -leafH / 2 + panelInset + panelH1 / 2;
+  const panelY2 = panelY1 + panelH1 / 2 + panelGap + panelH2 / 2;
+  const color = isSelected ? highlightColor : containerColor;
+  const emissive = isSelected ? highlightColor : "#000000";
+  const eI = isSelected ? 0.15 : 0;
+  const panelColor = isSelected ? highlightColor : darkenColor(containerColor, 0.88);
+
+  // Handle position (lever handle)
+  const hx = handleSide === "left" ? -leafW / 2 + 0.035 : leafW / 2 - 0.035;
+  const hy = -leafH / 2 + leafH * 0.45;
+
+  return (
+    <group position={[xOff, 0, 0]}>
+      {/* Main leaf surface */}
+      <mesh position={[0, 0, gap]}>
+        <planeGeometry args={[leafW - gap, leafH - gap]} />
+        <meshStandardMaterial color={color} metalness={0.4} roughness={0.5} emissive={emissive} emissiveIntensity={eI} />
+      </mesh>
+      {/* Lower recessed panel */}
+      <mesh position={[0, panelY1, gap + 0.001]}>
+        <planeGeometry args={[panelW, panelH1]} />
+        <meshStandardMaterial color={panelColor} metalness={0.35} roughness={0.6} emissive={emissive} emissiveIntensity={eI * 0.5} />
+      </mesh>
+      {/* Upper recessed panel */}
+      <mesh position={[0, panelY2, gap + 0.001]}>
+        <planeGeometry args={[panelW, panelH2]} />
+        <meshStandardMaterial color={panelColor} metalness={0.35} roughness={0.6} emissive={emissive} emissiveIntensity={eI * 0.5} />
+      </mesh>
+      {/* Handle plate */}
+      <mesh position={[hx, hy, gap + 0.003]}>
+        <planeGeometry args={[0.018, 0.06]} />
+        <meshStandardMaterial color="#d4d4d8" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Handle lever */}
+      <mesh position={[hx + (handleSide === "left" ? 0.015 : -0.015), hy + 0.008, gap + 0.006]}>
+        <boxGeometry args={[0.03, 0.008, 0.012]} />
+        <meshStandardMaterial color="#a1a1aa" metalness={0.9} roughness={0.15} />
+      </mesh>
+      {/* Keyhole */}
+      <mesh position={[hx, hy - 0.02, gap + 0.004]}>
+        <circleGeometry args={[0.004, 16]} />
+        <meshStandardMaterial color="#52525b" metalness={0.9} roughness={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+function darkenColor(hex, factor) {
+  const c = parseInt(hex.replace("#", ""), 16);
+  const r = Math.round(((c >> 16) & 0xff) * factor);
+  const g = Math.round(((c >> 8) & 0xff) * factor);
+  const b = Math.round((c & 0xff) * factor);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
 // Render a door element on a wall
 function DoorMesh({ el }) {
   const selectedId = useConfigStore((s) => s.selectedId);
+  const containerColor = useConfigStore((s) => s.containerColor);
   const isSelected = selectedId === el.id;
   const dims = useDims();
   const { pos, rot } = getWallTransform(el.wall, el, dims);
   const w = el.width * S;
   const h = el.height * S;
+  const isDouble = el.width >= 2000;
 
   return (
     <group userData={{ elementId: el.id, wall: el.wall }}>
       {/* Dark cutout (inner opening) */}
       <mesh position={pos} rotation={rot}>
         <planeGeometry args={[w, h]} />
-        <meshBasicMaterial color="#000000" />
+        <meshBasicMaterial color="#0f172a" />
       </mesh>
-      {/* Door panel */}
-      <mesh position={[pos[0] + (rot[1] !== 0 ? 0 : 0), pos[1], pos[2]]} rotation={rot}>
-        <planeGeometry args={[w - 0.015, h - 0.015]} />
-        <meshStandardMaterial
-          color={isSelected ? highlightColor : doorColor}
-          metalness={0.2}
-          roughness={0.8}
-          emissive={isSelected ? highlightColor : "#000000"}
-          emissiveIntensity={isSelected ? 0.15 : 0}
-        />
-      </mesh>
+      {/* Door leaf/leaves */}
+      <group position={pos} rotation={rot}>
+        {isDouble ? (
+          <>
+            <DoorLeaf leafW={w / 2} leafH={h} xOff={-w / 4} containerColor={containerColor} isSelected={isSelected} handleSide="right" />
+            <DoorLeaf leafW={w / 2} leafH={h} xOff={w / 4} containerColor={containerColor} isSelected={isSelected} handleSide="left" />
+            {/* Center seam */}
+            <mesh position={[0, 0, 0.005]}>
+              <planeGeometry args={[0.003, h - 0.006]} />
+              <meshStandardMaterial color="#71717a" metalness={0.6} roughness={0.3} />
+            </mesh>
+          </>
+        ) : (
+          <DoorLeaf leafW={w} leafH={h} xOff={0} containerColor={containerColor} isSelected={isSelected} handleSide="right" />
+        )}
+      </group>
       {/* HUP 100x50x3 frame */}
       <group position={pos} rotation={rot}>
         <HupFrame innerW={w} innerH={h} isSelected={isSelected} />

@@ -127,18 +127,20 @@ const useConfigStore = create((set, get) => ({
   }),
 
   // Called when user clicks a wall face in 3D — adds element with defaults
-  placeElement: (wall, type, clickX, clickY) => {
+  placeElement: (wall, type, clickX, clickY, opts) => {
     const id = nextId++;
     const base = { id, wall };
     const c = CONTAINER_SIZES[get().containerSize];
     const wd = getWallDims(c);
     let el;
     if (type === "door") {
+      const doorW = opts?.doorWidth || 1000;
+      const doorH = opts?.doorHeight || 2100;
       const isHorizontal = wall === "floor" || wall === "roof";
       el = clampElement({
         ...base, type: "door",
         x: Math.round(clickX), y: isHorizontal ? Math.round(clickY) : 0,
-        width: 1000, height: isHorizontal ? 1000 : 2100,
+        width: doorW, height: isHorizontal ? doorW : doorH,
       }, wd);
     } else {
       el = clampElement({

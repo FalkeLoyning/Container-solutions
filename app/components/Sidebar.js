@@ -115,20 +115,27 @@ function ElementEditor({ el }) {
 
       {el.type === "door" && (
         <>
-          <NumberInput
-            label="Bredde"
-            value={el.width}
-            onChange={(v) => updateElement(el.id, { width: v })}
-            min={1}
-            max={wallDim.w}
-          />
-          <NumberInput
-            label="Høyde"
-            value={el.height}
-            onChange={(v) => updateElement(el.id, { height: v })}
-            min={1}
-            max={wallDim.h}
-          />
+          <div>
+            <p className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">Størrelse</p>
+            <div className="flex gap-2">
+              {[
+                { w: 1000, h: 2100, label: "Enkel (1000×2100)" },
+                { w: 2000, h: 2100, label: "Dobbel (2000×2100)" },
+              ].map(({ w, h, label }) => (
+                <button
+                  key={w}
+                  onClick={() => updateElement(el.id, { width: w, height: h })}
+                  className={`flex-1 text-xs py-2 rounded-lg border transition-all cursor-pointer ${
+                    el.width === w && el.height === h
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)] font-semibold"
+                      : "border-[var(--border)] bg-[var(--bg-primary)] hover:border-[var(--accent)] text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </>
       )}
 
