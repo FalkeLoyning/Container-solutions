@@ -15,6 +15,8 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showApproved, setShowApproved] = useState(false);
+  const [showAccessRequests, setShowAccessRequests] = useState(false);
+  const [accessRequests, setAccessRequests] = useState([]);
 
   const isAdmin = myRole === "admin";
 
@@ -76,6 +78,57 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
   }, []);
 
   useEffect(() => { if (showApproved) loadApproved(); }, [showApproved, loadApproved]);
+
+  // ── Load access requests ──
+  const loadAccessRequests = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase
+      .from("access_requests")
+      .select("id, email, full_name, message, status, created_at")
+      .order("created_at", { ascending: false });
+    if (data) setAccessRequests(data);
+  }, []);
+
+  useEffect(() => { if (showAccessRequests) loadAccessRequests(); }, [showAccessRequests, loadAccessRequests]);
+
+  const handleApproveRequest = async (req) => {
+    if (!supabase) return;
+    setLoading(true);
+    try {
+      // Add to approved_emails
+      await supabase.from("approved_emails").upsert(
+        { email: req.email, added_by: userId },
+        { onConflict: "email" }
+      );
+      // Update request status
+      await supabase
+        .from("access_requests")
+        .update({ status: "approved", reviewed_at: new Date().toISOString(), reviewed_by: userId })
+        .eq("id", req.id);
+      await loadAccessRequests();
+      await loadApproved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (req) => {
+    if (!supabase) return;
+    setLoading(true);
+    try {
+      await supabase
+        .from("access_requests")
+        .update({ status: "rejected", reviewed_at: new Date().toISOString(), reviewed_by: userId })
+        .eq("id", req.id);
+      await loadAccessRequests();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Create org ──
   const createOrg = async () => {
@@ -442,6 +495,82 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Access Requests (admin only, collapsible) ── */}
+        {isAdmin && (
+          <>
+            <hr className="border-[var(--border)]" />
+            <div>
+              <button
+                onClick={() => setShowAccessRequests(!showAccessRequests)}
+                className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+              >
+                <span className="transition-transform" style={{ transform: showAccessRequests ? "rotate(90deg)" : "" }}>
+                  ▸
+                </span>
+                Tilgangsforespørsler ({accessRequests.filter((r) => r.status === "pending").length} ventende)
+              </button>
+
+              {showAccessRequests && (
+                <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
+                  {accessRequests.length === 0 && (
+                    <p className="text-xs text-[var(--text-secondary)] italic">Ingen forespørsler ennå</p>
+                  )}
+                  {accessRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className={`rounded-lg border p-3 space-y-1 ${
+                        req.status === "pending"
+                          ? "border-amber-300 bg-amber-50"
+                          : req.status === "approved"
+                          ? "border-green-200 bg-green-50"
+                          : "border-red-200 bg-red-50"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--text-primary)]">{req.full_name}</p>
+                          <p className="text-xs text-[var(--text-secondary)]">{req.email}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          req.status === "pending" ? "bg-amber-200 text-amber-800"
+                          : req.status === "approved" ? "bg-green-200 text-green-800"
+                          : "bg-red-200 text-red-800"
+                        }`}>
+                          {req.status === "pending" ? "Venter" : req.status === "approved" ? "Godkjent" : "Avslått"}
+                        </span>
+                      </div>
+                      {req.message && (
+                        <p className="text-xs text-[var(--text-secondary)] italic">&ldquo;{req.message}&rdquo;</p>
+                      )}
+                      <p className="text-[10px] text-[var(--text-secondary)]">
+                        {new Date(req.created_at).toLocaleDateString("nb-NO", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                      {req.status === "pending" && (
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => handleApproveRequest(req)}
+                            disabled={loading}
+                            className="flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50"
+                          >
+                            ✓ Godkjenn
+                          </button>
+                          <button
+                            onClick={() => handleRejectRequest(req)}
+                            disabled={loading}
+                            className="flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
+                          >
+                            ✕ Avslå
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -27,7 +27,8 @@ export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn 
   const insulation = useConfigStore((s) => s.insulation);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
   const containerSize = useConfigStore((s) => s.containerSize);
-  const cont = CONTAINER_SIZES[containerSize];
+  const customDims = useConfigStore((s) => s.customDims);
+  const cont = customDims || CONTAINER_SIZES[containerSize];
 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");

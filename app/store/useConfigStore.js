@@ -21,6 +21,11 @@ export const FORKLIFT_POCKET = {
 // Default for backwards compat – components should use store.containerSize instead
 export const CONTAINER = CONTAINER_SIZES["20ft"];
 
+// Returns customDims if set, otherwise the preset for the given size
+export function getActiveDims(state) {
+  return state.customDims || CONTAINER_SIZES[state.containerSize];
+}
+
 export function getWallDims(c) {
   const internalH = c.height - c.floorHeight;
   return {
@@ -81,6 +86,9 @@ const useConfigStore = create((set, get) => ({
   // Container size
   containerSize: "20ft",
 
+  // Custom dimension overrides (null = use preset)
+  customDims: null,
+
   // Array of placed elements
   elements: [],
 
@@ -89,6 +97,9 @@ const useConfigStore = create((set, get) => ({
 
   // Which element is selected for editing
   selectedId: null,
+
+  // Which element is unlocked for position editing / dragging
+  unlockedId: null,
 
   // Global toggles
   slopedRoof: { enabled: false },
@@ -100,7 +111,7 @@ const useConfigStore = create((set, get) => ({
   containerRal: null,
   paintType: null, // null | "fargeskift" | "epoxy"
 
-  cladding: { enabled: false, direction: "horizontal", color: "#94a3b8", ral: null },
+  cladding: { enabled: false, direction: "horizontal", color: "#8B7355", ral: null },
 
   // Section view: which walls are hidden
   hiddenWalls: new Set(),
@@ -119,18 +130,38 @@ const useConfigStore = create((set, get) => ({
   startPlacement: () => set({ placementMode: "pending", selectedId: null }),
   cancelPlacement: () => set({ placementMode: null }),
 
-  setContainerSize: (size) => set({
-    containerSize: size,
-    elements: [],
-    selectedId: null,
-    placementMode: null,
+  setContainerSize: (size) => set((s) => {
+    const c = CONTAINER_SIZES[size];
+    const wd = getWallDims(c);
+    return {
+      containerSize: size,
+      customDims: null,
+      elements: s.elements.map((el) => clampElement(el, wd)),
+      selectedId: null,
+      unlockedId: null,
+      placementMode: null,
+    };
   }),
+
+  setCustomDim: (dim, value) => {
+    const s = get();
+    const base = s.customDims || CONTAINER_SIZES[s.containerSize];
+    const newDims = { ...base, [dim]: value };
+    const wd = getWallDims(newDims);
+    set({
+      customDims: newDims,
+      elements: s.elements.map((el) => clampElement(el, wd)),
+      selectedId: s.selectedId,
+      unlockedId: null,
+      placementMode: null,
+    });
+  },
 
   // Called when user clicks a wall face in 3D — adds element with defaults
   placeElement: (wall, type, clickX, clickY, opts) => {
     const id = nextId++;
     const base = { id, wall };
-    const c = CONTAINER_SIZES[get().containerSize];
+    const c = getActiveDims(get());
     const wd = getWallDims(c);
     let el;
     if (type === "door") {
@@ -146,20 +177,22 @@ const useConfigStore = create((set, get) => ({
       el = clampElement({
         ...base, type: "ventilation",
         x: Math.round(clickX), y: Math.round(clickY),
-        width: 400, height: 300, shape: "rectangle", grille: false, exhaust: false,
+        width: opts?.ventWidth || 400, height: opts?.ventHeight || 300,
+        shape: "rectangle", grille: false, exhaust: false,
       }, wd);
     }
     set((s) => ({
       elements: [...s.elements, el],
       placementMode: null,
       selectedId: id,
+      unlockedId: id,
     }));
   },
 
   // Update an existing element
   updateElement: (id, partial) =>
     set((s) => {
-      const c = CONTAINER_SIZES[s.containerSize];
+      const c = getActiveDims(s);
       const wd = getWallDims(c);
       return {
         elements: s.elements.map((el) =>
@@ -176,6 +209,9 @@ const useConfigStore = create((set, get) => ({
     })),
 
   selectElement: (id) => set({ selectedId: id, placementMode: null }),
+
+  toggleUnlock: (id) =>
+    set((s) => ({ unlockedId: s.unlockedId === id ? null : id })),
 
   toggleSlopedRoof: () =>
     set((s) => ({ slopedRoof: { enabled: !s.slopedRoof.enabled } })),
@@ -228,7 +264,7 @@ const useConfigStore = create((set, get) => ({
     const { geometryCache, geometryDataToBufferGeometry } = require("../lib/stepLoader");
     const id = nextId++;
     geometryCache.set(id, geometryDataToBufferGeometry(geometryData));
-    const c = CONTAINER_SIZES[get().containerSize];
+    const c = getActiveDims(get());
     const obj = {
       id, name,
       x: c.length / 2,
@@ -290,7 +326,7 @@ const useConfigStore = create((set, get) => ({
       containerColor: data.containerColor || "#94a3b8",
       containerRal: data.containerRal || null,
       paintType: data.paintType || null,
-      cladding: data.cladding || { enabled: false, direction: "horizontal", color: "#94a3b8", ral: null },
+      cladding: data.cladding || { enabled: false, direction: "horizontal", color: "#8B7355", ral: null },
       hiddenWalls: new Set(data.hiddenWalls || []),
       containerDoor: data.containerDoor || { enabled: false, wall: "front" },
       insulation: {

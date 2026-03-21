@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import * as THREE from "three";
-import useConfigStore, { CONTAINER_SIZES, getWallDims, FORKLIFT_POCKET } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES, getWallDims, getActiveDims, FORKLIFT_POCKET } from "../store/useConfigStore";
 import InteriorObjects from "./InteriorObjects";
 
 // Scale: mm -> Three.js units (meters)
@@ -12,7 +12,8 @@ const steelColor = "#94a3b8";
 
 function useDims() {
   const size = useConfigStore((s) => s.containerSize);
-  const c = CONTAINER_SIZES[size];
+  const customDims = useConfigStore((s) => s.customDims);
+  const c = customDims || CONTAINER_SIZES[size];
   return {
     L: c.length * S,
     W: c.width * S,
@@ -33,35 +34,156 @@ const holeColor = "#0f172a";
 const HUP_W = 50;   // profile face width (visible from outside, flush with wall)
 const HUP_D = 100;  // profile depth (extends inward from wall)
 
+// Corrugated panel geometry — trapezoidal wave profile
+// width/height in 3D units, corrugations run along corrAxis
+// Returns a BufferGeometry in XY plane, centered, with corrugation depth in Z
+function useCorrugatedGeometry(width, height, corrAxis = "vertical") {
+  return useMemo(() => {
+    // Trapezoidal corrugation profile (real container ~55mm pitch, ~15mm depth)
+    const depth = 0.012;     // 12mm corrugation depth
+    const pitch = 0.055;     // 55mm between corrugation repeats
+    const flatRatio = 0.35;  // ratio of flat top/bottom to pitch
+    const flatW = pitch * flatRatio;
+    const slopeW = (pitch - 2 * flatW) / 2;
+
+    // Build 2D profile as a series of X,Z points (one period)
+    // bottom flat → slope up → top flat → slope down
+    const profilePeriod = [
+      [0, 0],
+      [flatW, 0],
+      [flatW + slopeW, depth],
+      [flatW + slopeW + flatW, depth],
+      [flatW + slopeW + flatW + slopeW, 0],
+    ];
+
+    // Determine corrugation direction dimensions
+    const corrLen = corrAxis === "vertical" ? height : width;
+    const spanLen = corrAxis === "vertical" ? width : height;
+
+    // Number of full corrugation periods
+    const periods = Math.ceil(corrLen / pitch);
+
+    // Build profile points along corrugation direction
+    const profile = [];
+    for (let p = 0; p < periods; p++) {
+      const offset = p * pitch;
+      for (let i = 0; i < profilePeriod.length; i++) {
+        // Skip first point of subsequent periods (shared with last of previous)
+        if (p > 0 && i === 0) continue;
+        profile.push([offset + profilePeriod[i][0], profilePeriod[i][1]]);
+      }
+    }
+    // Clamp last point to corrLen
+    if (profile[profile.length - 1][0] > corrLen) {
+      profile[profile.length - 1][0] = corrLen;
+    }
+
+    const nProfile = profile.length;
+    // Two span positions: 0 and spanLen
+    const positions = [];
+    const normals = [];
+    const indices = [];
+
+    // For each profile segment, compute face normal
+    for (let i = 0; i < nProfile; i++) {
+      const [pu, pz] = profile[i];
+      for (let j = 0; j < 2; j++) {
+        const sv = j * spanLen;
+        if (corrAxis === "vertical") {
+          // corrugation along Y (height), span along X (width)
+          positions.push(sv - width / 2, pu - height / 2, pz);
+        } else {
+          // corrugation along X (width), span along Y (height)
+          positions.push(pu - width / 2, sv - height / 2, pz);
+        }
+
+        // Compute normal from adjacent profile segments
+        let nx = 0, ny = 0, nz = 1;
+        if (i > 0 && i < nProfile - 1) {
+          const [prevU, prevZ] = profile[i - 1];
+          const [nextU, nextZ] = profile[i + 1];
+          const du = nextU - prevU;
+          const dz = nextZ - prevZ;
+          // Normal perpendicular to profile slope, pointing outward (+Z)
+          const len = Math.sqrt(du * du + dz * dz);
+          if (corrAxis === "vertical") {
+            ny = -dz / len;
+            nz = du / len;
+          } else {
+            nx = -dz / len;
+            nz = du / len;
+          }
+        } else {
+          nz = 1;
+        }
+        normals.push(nx, ny, nz);
+      }
+    }
+
+    // Create quads between consecutive profile points
+    for (let i = 0; i < nProfile - 1; i++) {
+      const a = i * 2;
+      const b = a + 1;
+      const c = a + 2;
+      const d = a + 3;
+      indices.push(a, c, b, b, c, d);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }, [width, height, corrAxis]);
+}
+
 // Element type picker shown after clicking a wall
 function WallClickMenu({ position, onSelect, onCancel }) {
   // This is rendered as an HTML overlay, not in 3D
   return null; // handled in Canvas3D overlay instead
 }
 
-// Clickable wall component
-function ClickableWall({ wallName, position, size, rotation, children }) {
+// Clickable wall component with corrugated panel
+function ClickableWall({ wallName, position, wallWidth, wallHeight, rotation, children }) {
   const placementMode = useConfigStore((s) => s.placementMode);
   const containerColor = useConfigStore((s) => s.containerColor);
   const isPlacing = placementMode === "pending";
+  const { T } = useDims();
+
+  // Walls have vertical standing corrugations (profile repeats along width)
+  const corrGeo = useCorrugatedGeometry(wallWidth, wallHeight, "horizontal");
 
   return (
-    <mesh
-      position={position}
-      rotation={rotation || [0, 0, 0]}
-      castShadow
-      userData={{ wall: wallName }}
-    >
-      <boxGeometry args={size} />
-      <meshStandardMaterial
-        color={isPlacing ? "#b0bec5" : containerColor}
-        metalness={0.3}
-        roughness={0.55}
-        emissive={isPlacing ? highlightColor : "#000000"}
-        emissiveIntensity={isPlacing ? 0.12 : 0}
-      />
+    <group position={position} rotation={rotation || [0, 0, 0]}>
+      {/* Inner flat plate (structural wall) */}
+      <mesh userData={{ wall: wallName }}>
+        <boxGeometry args={[wallWidth, wallHeight, T * 0.3]} />
+        <meshStandardMaterial
+          color={isPlacing ? "#b0bec5" : containerColor}
+          metalness={0.3}
+          roughness={0.55}
+          emissive={isPlacing ? highlightColor : "#000000"}
+          emissiveIntensity={isPlacing ? 0.12 : 0}
+        />
+      </mesh>
+      {/* Outer corrugated panel */}
+      <mesh
+        geometry={corrGeo}
+        position={[0, 0, T * 0.15]}
+        userData={{ wall: wallName }}
+      >
+        <meshStandardMaterial
+          color={isPlacing ? "#b0bec5" : containerColor}
+          metalness={0.4}
+          roughness={0.45}
+          emissive={isPlacing ? highlightColor : "#000000"}
+          emissiveIntensity={isPlacing ? 0.12 : 0}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
       {children}
-    </mesh>
+    </group>
   );
 }
 
@@ -83,11 +205,30 @@ function Floor() {
 function FlatRoof() {
   const containerColor = useConfigStore((s) => s.containerColor);
   const { L, W, H, T } = useDims();
+  // Roof corrugations run along the length (horizontal axis)
+  const corrGeo = useCorrugatedGeometry(L, W, "vertical");
+
   return (
-    <mesh position={[L / 2, H, W / 2]} receiveShadow userData={{ wall: "roof" }}>
-      <boxGeometry args={[L, T, W]} />
-      <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.6} />
-    </mesh>
+    <group position={[L / 2, H, W / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Inner flat plate */}
+      <mesh receiveShadow userData={{ wall: "roof" }}>
+        <boxGeometry args={[L, W, T * 0.3]} />
+        <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.6} />
+      </mesh>
+      {/* Outer corrugated panel */}
+      <mesh
+        geometry={corrGeo}
+        position={[0, 0, T * 0.15]}
+        userData={{ wall: "roof" }}
+      >
+        <meshStandardMaterial
+          color={containerColor}
+          metalness={0.4}
+          roughness={0.5}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -227,7 +368,7 @@ function LouverGrille({ width, height }) {
     const slatSpacing = 0.025;  // 25mm between slat centers
     const slatThick = 0.002;   // 2mm sheet thickness
     const slatDepth = 0.022;   // 22mm slat depth (projection)
-    const angle = -Math.PI / 4; // 45° downward tilt (blocks rain)
+    const angle = Math.PI / 4; // 45° downward tilt (blocks rain, angled outward)
     const count = Math.floor(height / slatSpacing);
     const items = [];
     for (let i = 0; i < count; i++) {
@@ -917,10 +1058,22 @@ export default function ContainerModel() {
 
       {!isHidden("floor") && <Floor />}
 
-      {!isHidden("back") && <ClickableWall wallName="back" position={[0, F + wallH / 2, W / 2]} size={[T, wallH, W]} />}
-      {!isHidden("left") && <ClickableWall wallName="left" position={[L / 2, F + wallH / 2, 0]} size={[L, wallH, T]} />}
-      {!isHidden("right") && <ClickableWall wallName="right" position={[L / 2, F + wallH / 2, W]} size={[L, wallH, T]} />}
-      {!isHidden("front") && <ClickableWall wallName="front" position={[L, F + wallH / 2, W / 2]} size={[T, wallH, W]} />}
+      {!isHidden("back") && (
+        <ClickableWall wallName="back" wallWidth={W} wallHeight={wallH}
+          position={[0, F + wallH / 2, W / 2]} rotation={[0, -Math.PI / 2, 0]} />
+      )}
+      {!isHidden("left") && (
+        <ClickableWall wallName="left" wallWidth={L} wallHeight={wallH}
+          position={[L / 2, F + wallH / 2, 0]} rotation={[0, Math.PI, 0]} />
+      )}
+      {!isHidden("right") && (
+        <ClickableWall wallName="right" wallWidth={L} wallHeight={wallH}
+          position={[L / 2, F + wallH / 2, W]} rotation={[0, 0, 0]} />
+      )}
+      {!isHidden("front") && (
+        <ClickableWall wallName="front" wallWidth={W} wallHeight={wallH}
+          position={[L, F + wallH / 2, W / 2]} rotation={[0, Math.PI / 2, 0]} />
+      )}
 
       {!isHidden("roof") && (slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />)}
 

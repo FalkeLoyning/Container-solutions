@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import ContainerModel from "./ContainerModel";
-import useConfigStore, { CONTAINER_SIZES, getWallDims } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES, getWallDims, getActiveDims } from "../store/useConfigStore";
 
 const SC = 0.1; // mm -> SVG units
 const PAD = 80;
@@ -67,7 +67,8 @@ function SnapshotCapture({ views, onCapture }) {
 function SnapshotRenderer({ onSnapshots }) {
   const views = useMemo(() => {
     const size = useConfigStore.getState().containerSize;
-    const c = CONTAINER_SIZES[size];
+    const customDims = useConfigStore.getState().customDims;
+    const c = customDims || CONTAINER_SIZES[size];
     return getSnapshotViews(c.length, c.width, c.height);
   }, []);
 
@@ -412,7 +413,8 @@ export default function DrawingPreview() {
   const slopedRoof = useConfigStore((s) => s.slopedRoof);
   const setShowDrawing = useConfigStore((s) => s.setShowDrawing);
   const containerSize = useConfigStore((s) => s.containerSize);
-  const c = CONTAINER_SIZES[containerSize];
+  const customDims = useConfigStore((s) => s.customDims);
+  const c = customDims || CONTAINER_SIZES[containerSize];
   const CL = c.length, CW = c.width, CH = c.height;
   const wallDims = getWallDims(c);
 

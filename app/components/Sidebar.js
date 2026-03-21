@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import useConfigStore, { CONTAINER_SIZES, getWallDims, RAL_COLORS } from "../store/useConfigStore";
+import useConfigStore, { CONTAINER_SIZES, getWallDims, getActiveDims, RAL_COLORS } from "../store/useConfigStore";
 import { loadStepFile, loadGlbFile } from "../lib/stepLoader";
 import { supabase } from "../lib/supabase";
 
@@ -62,8 +62,12 @@ function Toggle({ label, checked, onChange }) {
 function ElementEditor({ el }) {
   const updateElement = useConfigStore((s) => s.updateElement);
   const removeElement = useConfigStore((s) => s.removeElement);
+  const unlockedId = useConfigStore((s) => s.unlockedId);
+  const toggleUnlock = useConfigStore((s) => s.toggleUnlock);
   const containerSize = useConfigStore((s) => s.containerSize);
-  const wallDim = getWallDims(CONTAINER_SIZES[containerSize])[el.wall];
+  const customDims = useConfigStore((s) => s.customDims);
+  const wallDim = getWallDims(customDims || CONTAINER_SIZES[containerSize])[el.wall];
+  const isUnlocked = unlockedId === el.id;
 
   return (
     <div className="space-y-3">
@@ -71,47 +75,52 @@ function ElementEditor({ el }) {
         <span className="text-xs text-[var(--text-secondary)]">
           Vegg: <strong className="text-[var(--text-primary)]">{WALL_LABELS[el.wall]}</strong>
         </span>
-        <button
-          onClick={() => removeElement(el.id)}
-          className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-300 hover:bg-red-800 transition-colors"
-        >
-          🗑 Slett
-        </button>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => toggleUnlock(el.id)}
+            className={`text-xs px-2 py-1 rounded transition-colors cursor-pointer ${
+              isUnlocked
+                ? "bg-amber-100 text-amber-700 border border-amber-300"
+                : "bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            }`}
+          >
+            {isUnlocked ? "🔓 Låst opp" : "🔒 Lås opp"}
+          </button>
+          <button
+            onClick={() => removeElement(el.id)}
+            className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-300 hover:bg-red-800 transition-colors"
+          >
+            🗑 Slett
+          </button>
+        </div>
       </div>
 
       <p className="text-[10px] text-[var(--text-secondary)] italic">
-        Origo: nederste venstre hjørne av veggen (sett utenfra)
+        {isUnlocked ? "Plassering redigeres i 3D-visningen · Dra elementet for å flytte" : "🔒 Lås opp for å endre plassering"}
       </p>
 
-      <NumberInput
-        label="X – avstand fra venstre kant"
-        value={el.x}
-        onChange={(v) => updateElement(el.id, { x: v })}
-        min={0}
-        max={wallDim.w - el.width}
-      />
-      <NumberInput
-        label="Y – avstand fra bunn"
-        value={el.y}
-        onChange={(v) => updateElement(el.id, { y: v })}
-        min={0}
-        max={wallDim.h - el.height}
-      />
-
-      <div className="flex gap-2">
-        <button
-          onClick={() => updateElement(el.id, { x: Math.round((wallDim.w - el.width) / 2) })}
-          className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-        >
-          ↔ Sentrer X
-        </button>
-        <button
-          onClick={() => updateElement(el.id, { y: Math.round((wallDim.h - el.height) / 2) })}
-          className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-        >
-          ↕ Sentrer Y
-        </button>
+      <div className="flex gap-2 text-xs text-[var(--text-secondary)]">
+        <span>X: {el.x} mm</span>
+        <span>·</span>
+        <span>Y: {el.y} mm</span>
       </div>
+
+      {isUnlocked && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => updateElement(el.id, { x: Math.round((wallDim.w - el.width) / 2) })}
+            className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+          >
+            ↔ Sentrer X
+          </button>
+          <button
+            onClick={() => updateElement(el.id, { y: Math.round((wallDim.h - el.height) / 2) })}
+            className="flex-1 text-xs py-1.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+          >
+            ↕ Sentrer Y
+          </button>
+        </div>
+      )}
 
       {el.type === "door" && (
         <>
@@ -249,7 +258,9 @@ export default function Sidebar({ userId, orgId }) {
   const toggleInsulationWall = useConfigStore((s) => s.toggleInsulationWall);
   const containerSize = useConfigStore((s) => s.containerSize);
   const setContainerSize = useConfigStore((s) => s.setContainerSize);
-  const cont = CONTAINER_SIZES[containerSize];
+  const customDims = useConfigStore((s) => s.customDims);
+  const setCustomDim = useConfigStore((s) => s.setCustomDim);
+  const cont = customDims || CONTAINER_SIZES[containerSize];
 
   // Interior objects
   const interiorObjects = useConfigStore((s) => s.interiorObjects);
@@ -333,7 +344,7 @@ export default function Sidebar({ userId, orgId }) {
       <div className="mb-2">
         <h2 className="text-lg font-bold">⚙️ Konfigurasjon</h2>
         <p className="text-xs text-[var(--text-secondary)] mt-1">
-          {containerSize} ISO – {cont.length} × {cont.width} × {cont.height} mm
+          {customDims ? "Egendefinert" : containerSize + " ISO"} – {cont.length} × {cont.width} × {cont.height} mm
         </p>
       </div>
 
@@ -348,13 +359,34 @@ export default function Sidebar({ userId, orgId }) {
               key={key}
               onClick={() => setContainerSize(key)}
               className={`px-2 py-2 text-xs font-semibold rounded-lg border transition-all ${
-                containerSize === key
+                containerSize === key && !customDims
                   ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
                   : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
               }`}
             >
               {key}
             </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-1.5 mt-2">
+          {[
+            { key: "length", label: "L" },
+            { key: "width", label: "B" },
+            { key: "height", label: "H" },
+          ].map(({ key, label }) => (
+            <div key={key} className="flex flex-col">
+              <label className="text-[10px] text-[var(--text-secondary)] mb-0.5">{label} (mm)</label>
+              <input
+                type="number"
+                min={1000}
+                value={cont[key]}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  if (v > 0) setCustomDim(key, v);
+                }}
+                className="w-full px-2 py-1 text-xs rounded border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:border-[var(--accent)] outline-none"
+              />
+            </div>
           ))}
         </div>
       </div>
@@ -741,7 +773,7 @@ export default function Sidebar({ userId, orgId }) {
             </div>
             {cladding.ral && (
               <button
-                onClick={() => setCladdingColor(null, "#94a3b8")}
+                onClick={() => setCladdingColor(null, "#8B7355")}
                 className="text-xs text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
               >
                 ↩ Tilbakestill kledningsfarge

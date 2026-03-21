@@ -16,54 +16,99 @@ function ContainerIcon({ size = 64 }) {
   );
 }
 
+function ErrorMessage({ message }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl px-4 py-3 text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+      <svg className="w-4 h-4 mt-px flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{message}</span>
+    </div>
+  );
+}
+
+function SuccessMessage({ message }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl px-4 py-3 text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+      <svg className="w-4 h-4 mt-px flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{message}</span>
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span className="flex items-center justify-center gap-2">
+      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      Venter…
+    </span>
+  );
+}
+
 export default function LoginScreen({ onLogin }) {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // "login" | "request" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [message, setMessage] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
 
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError(null);
+    if (!supabase) { setError("Supabase er ikke konfigurert"); return; }
+    setLoading(true);
+    try {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInErr) throw signInErr;
+      onLogin();
+    } catch (err) {
+      setError(err.message === "Invalid login credentials" ? "Feil e-post eller passord" : err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestAccess = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/request-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, fullName, message }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccess("Forespørselen din er sendt! Du vil få beskjed når tilgangen er godkjent.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
     if (!supabase) { setError("Supabase er ikke konfigurert"); return; }
-    if (mode === "register" && password !== confirmPassword) {
-      setError("Passordene stemmer ikke overens");
-      return;
-    }
     setLoading(true);
     try {
-      if (mode === "register") {
-        // Check if email is approved before attempting signup
-        const { data: approved, error: rpcErr } = await supabase.rpc("is_email_approved", { check_email: email });
-        if (rpcErr) throw rpcErr;
-        if (!approved) {
-          setError("E-postadressen er ikke godkjent for tilgang. Kontakt en administrator.");
-          return;
-        }
-        const { data, error: signUpErr } = await supabase.auth.signUp({
-          email, password,
-          options: { data: { full_name: fullName } },
-        });
-        if (signUpErr) throw signUpErr;
-        if (data?.user?.identities?.length === 0) {
-          setError("En bruker med denne e-posten finnes allerede");
-          return;
-        }
-        if (data?.session) { onLogin(); return; }
-        // Fallback: try sign in directly (email confirmation disabled)
-        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInErr) throw signInErr;
-        onLogin();
-      } else {
-        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInErr) throw signInErr;
-        onLogin();
-      }
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (resetErr) throw resetErr;
+      setSuccess("En e-post med lenke for å tilbakestille passordet er sendt.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -161,38 +206,110 @@ export default function LoginScreen({ onLogin }) {
           {/* Heading */}
           <div className="mb-8">
             <h2 className="text-[28px] font-extrabold text-[var(--text-primary)] tracking-tight">
-              {mode === "login" ? "Velkommen tilbake" : "Kom i gang"}
+              {mode === "login" ? "Velkommen tilbake" : mode === "request" ? "Spør om tilgang" : "Glemt passord"}
             </h2>
             <p className="text-sm text-[var(--text-secondary)] mt-1.5">
               {mode === "login"
                 ? "Logg inn for å fortsette til konfiguratoren"
-                : "Opprett en konto for å begynne å konfigurere"}
+                : mode === "request"
+                ? "Send en forespørsel for å få tilgang"
+                : "Skriv inn e-posten din for å tilbakestille passordet"}
             </p>
           </div>
 
           {/* Tab switcher */}
-          <div className="flex gap-1 mb-7 p-1 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-            {[
-              { key: "login", label: "Logg inn" },
-              { key: "register", label: "Registrer" },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { setMode(key); setError(null); setSuccess(null); }}
-                className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
-                  mode === key
-                    ? "bg-white text-[var(--accent)] shadow-sm border border-[var(--border)]"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {mode !== "forgot" && (
+            <div className="flex gap-1 mb-7 p-1 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
+              {[
+                { key: "login", label: "Logg inn" },
+                { key: "request", label: "Spør om tilgang" },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { setMode(key); setError(null); setSuccess(null); }}
+                  className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
+                    mode === key
+                      ? "bg-white text-[var(--accent)] shadow-sm border border-[var(--border)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {mode === "register" && (
+          {mode === "forgot" && (
+            <button
+              type="button"
+              onClick={() => { setMode("login"); setError(null); setSuccess(null); }}
+              className="mb-6 text-sm text-[var(--accent)] hover:underline cursor-pointer flex items-center gap-1"
+            >
+              ← Tilbake til innlogging
+            </button>
+          )}
+
+          {/* Login form */}
+          {mode === "login" && (
+            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  E-post
+                </label>
+                <input
+                  type="email"
+                  placeholder="din@epost.no"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className={inputClass}
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  Passord
+                </label>
+                <input
+                  type="password"
+                  placeholder="Ditt passord"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className={inputClass}
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => { setMode("forgot"); setError(null); setSuccess(null); }}
+                className="self-end text-xs text-[var(--accent)] hover:underline cursor-pointer -mt-1"
+              >
+                Glemt passord?
+              </button>
+
+              {error && <ErrorMessage message={error} />}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full mt-1 rounded-xl py-3.5 font-bold text-sm text-white cursor-pointer
+                  transition-all duration-200 hover:shadow-lg hover:shadow-[var(--accent)]/25
+                  active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
+              >
+                {loading ? <Spinner /> : "Logg inn"}
+              </button>
+            </form>
+          )}
+
+          {/* Request access form */}
+          {mode === "request" && (
+            <form onSubmit={handleRequestAccess} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                   Fullt navn
@@ -207,87 +324,84 @@ export default function LoginScreen({ onLogin }) {
                   autoComplete="name"
                 />
               </div>
-            )}
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                E-post
-              </label>
-              <input
-                type="email"
-                placeholder="din@epost.no"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className={inputClass}
-                autoComplete="email"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                Passord
-              </label>
-              <input
-                type="password"
-                placeholder="Minimum 6 tegn"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className={inputClass}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-              />
-            </div>
-
-            {mode === "register" && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                  Bekreft passord
+                  E-post
                 </label>
                 <input
-                  type="password"
-                  placeholder="Gjenta passordet"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  type="email"
+                  placeholder="din@epost.no"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
-                  minLength={6}
                   className={inputClass}
-                  autoComplete="new-password"
+                  autoComplete="email"
                 />
               </div>
-            )}
 
-            {error && (
-              <div className="flex items-start gap-2.5 rounded-xl px-4 py-3 text-xs font-medium bg-red-50 text-red-600 border border-red-200">
-                <svg className="w-4 h-4 mt-px flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{error}</span>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  Melding (valgfritt)
+                </label>
+                <textarea
+                  placeholder="Hvorfor ønsker du tilgang?"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={3}
+                  className={inputClass + " resize-none"}
+                />
               </div>
-            )}
 
+              {error && <ErrorMessage message={error} />}
+              {success && <SuccessMessage message={success} />}
 
+              <button
+                type="submit"
+                disabled={loading || !!success}
+                className="w-full mt-1 rounded-xl py-3.5 font-bold text-sm text-white cursor-pointer
+                  transition-all duration-200 hover:shadow-lg hover:shadow-[var(--accent)]/25
+                  active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
+              >
+                {loading ? <Spinner /> : "Send forespørsel"}
+              </button>
+            </form>
+          )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-2 rounded-xl py-3.5 font-bold text-sm text-white cursor-pointer
-                transition-all duration-200 hover:shadow-lg hover:shadow-[var(--accent)]/25
-                active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Venter…
-                </span>
-              ) : mode === "login" ? "Logg inn" : "Opprett konto"}
-            </button>
-          </form>
+          {/* Forgot password form */}
+          {mode === "forgot" && (
+            <form onSubmit={handleForgotPassword} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  E-post
+                </label>
+                <input
+                  type="email"
+                  placeholder="din@epost.no"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className={inputClass}
+                  autoComplete="email"
+                />
+              </div>
+
+              {error && <ErrorMessage message={error} />}
+              {success && <SuccessMessage message={success} />}
+
+              <button
+                type="submit"
+                disabled={loading || !!success}
+                className="w-full mt-1 rounded-xl py-3.5 font-bold text-sm text-white cursor-pointer
+                  transition-all duration-200 hover:shadow-lg hover:shadow-[var(--accent)]/25
+                  active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
+              >
+                {loading ? <Spinner /> : "Tilbakestill passord"}
+              </button>
+            </form>
+          )}
 
           {/* Footer text on mobile */}
           <p className="lg:hidden text-center text-[var(--text-secondary)]/40 text-xs mt-10">
