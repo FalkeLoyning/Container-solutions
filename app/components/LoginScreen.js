@@ -38,6 +38,13 @@ export default function LoginScreen({ onLogin }) {
     setLoading(true);
     try {
       if (mode === "register") {
+        // Check if email is approved before attempting signup
+        const { data: approved, error: rpcErr } = await supabase.rpc("is_email_approved", { check_email: email });
+        if (rpcErr) throw rpcErr;
+        if (!approved) {
+          setError("E-postadressen er ikke godkjent for tilgang. Kontakt en administrator.");
+          return;
+        }
         const { data, error: signUpErr } = await supabase.auth.signUp({
           email, password,
           options: { data: { full_name: fullName } },
@@ -48,12 +55,9 @@ export default function LoginScreen({ onLogin }) {
           return;
         }
         if (data?.session) { onLogin(); return; }
+        // Fallback: try sign in directly (email confirmation disabled)
         const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInErr) {
-          setSuccess("Konto opprettet! Sjekk e-posten din for bekreftelseslenke.");
-          setMode("login");
-          return;
-        }
+        if (signInErr) throw signInErr;
         onLogin();
       } else {
         const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
@@ -263,14 +267,7 @@ export default function LoginScreen({ onLogin }) {
               </div>
             )}
 
-            {success && (
-              <div className="flex items-start gap-2.5 rounded-xl px-4 py-3 text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                <svg className="w-4 h-4 mt-px flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{success}</span>
-              </div>
-            )}
+
 
             <button
               type="submit"

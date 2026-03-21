@@ -37,12 +37,12 @@ export default function Home() {
     (async () => {
       const { data } = await supabase
         .from("org_members")
-        .select("organization_id, organizations(name)")
+        .select("org_id, organizations(name)")
         .eq("user_id", session.user.id)
         .limit(1)
         .single();
       if (data) {
-        setOrgId(data.organization_id);
+        setOrgId(data.org_id);
         setOrgName(data.organizations.name);
       }
     })();
