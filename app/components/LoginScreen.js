@@ -51,11 +51,12 @@ function Spinner() {
 }
 
 export default function LoginScreen({ onLogin }) {
-  const [mode, setMode] = useState("login"); // "login" | "request" | "forgot"
+  const [mode, setMode] = useState("login"); // "login" | "register" | "request" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [message, setMessage] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
@@ -113,6 +114,28 @@ export default function LoginScreen({ onLogin }) {
         throw new Error(body.error || "Noe gikk galt");
       }
       setSuccess("Forespørselen er sendt! En administrator vil tilbakestille passordet ditt.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: accessCode, email, password, fullName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Noe gikk galt");
+      setSuccess("Konto opprettet! Du kan nå logge inn.");
+      setTimeout(() => { setMode("login"); setSuccess(null); }, 2000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -210,11 +233,13 @@ export default function LoginScreen({ onLogin }) {
           {/* Heading */}
           <div className="mb-8">
             <h2 className="text-[28px] font-extrabold text-[var(--text-primary)] tracking-tight">
-              {mode === "login" ? "Velkommen tilbake" : mode === "request" ? "Spør om tilgang" : "Glemt passord"}
+              {mode === "login" ? "Velkommen tilbake" : mode === "register" ? "Registrer deg" : mode === "request" ? "Spør om tilgang" : "Glemt passord"}
             </h2>
             <p className="text-sm text-[var(--text-secondary)] mt-1.5">
               {mode === "login"
                 ? "Logg inn for å fortsette til konfiguratoren"
+                : mode === "register"
+                ? "Opprett konto med tilgangskode fra administrator"
                 : mode === "request"
                 ? "Send en forespørsel for å få tilgang"
                 : "Skriv inn e-posten din for å tilbakestille passordet"}
@@ -226,6 +251,7 @@ export default function LoginScreen({ onLogin }) {
             <div className="flex gap-1 mb-7 p-1 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
               {[
                 { key: "login", label: "Logg inn" },
+                { key: "register", label: "Registrer" },
                 { key: "request", label: "Spør om tilgang" },
               ].map(({ key, label }) => (
                 <button
@@ -307,6 +333,86 @@ export default function LoginScreen({ onLogin }) {
                 style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
               >
                 {loading ? <Spinner /> : "Logg inn"}
+              </button>
+            </form>
+          )}
+
+          {/* Register form */}
+          {mode === "register" && (
+            <form onSubmit={handleRegister} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  Tilgangskode
+                </label>
+                <input
+                  type="text"
+                  placeholder="F.eks. AB3K7NPW"
+                  value={accessCode}
+                  onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                  required
+                  className={inputClass}
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  E-post
+                </label>
+                <input
+                  type="email"
+                  placeholder="din@epost.no"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className={inputClass}
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  Fullt navn
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ola Nordmann"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  className={inputClass}
+                  autoComplete="name"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  Passord
+                </label>
+                <input
+                  type="password"
+                  placeholder="Minst 6 tegn"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className={inputClass}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              {error && <ErrorMessage message={error} />}
+              {success && <SuccessMessage message={success} />}
+
+              <button
+                type="submit"
+                disabled={loading || !!success}
+                className="w-full mt-1 rounded-xl py-3.5 font-bold text-sm text-white cursor-pointer
+                  transition-all duration-200 hover:shadow-lg hover:shadow-[var(--accent)]/25
+                  active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
+              >
+                {loading ? <Spinner /> : "Opprett konto"}
               </button>
             </form>
           )}

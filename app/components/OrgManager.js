@@ -20,6 +20,9 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
   const [showPasswordResets, setShowPasswordResets] = useState(false);
   const [passwordResets, setPasswordResets] = useState([]);
   const [resetPasswords, setResetPasswords] = useState({}); // { [requestId]: "newPassword" }
+  const [showAccessCodes, setShowAccessCodes] = useState(false);
+  const [accessCodes, setAccessCodes] = useState([]);
+  const [newCodeEmail, setNewCodeEmail] = useState("");
 
   const isAdmin = myRole === "admin";
 
@@ -149,6 +152,53 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── Load access codes ──
+  const loadAccessCodes = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase
+      .from("access_codes")
+      .select("id, code, email, used_at, created_at")
+      .order("created_at", { ascending: false });
+    if (data) setAccessCodes(data);
+  }, []);
+
+  useEffect(() => { if (showAccessCodes) loadAccessCodes(); }, [showAccessCodes, loadAccessCodes]);
+
+  const generateCode = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  };
+
+  const handleCreateAccessCode = async () => {
+    if (!supabase || !newCodeEmail.trim() || !activeOrgId) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const code = generateCode();
+      const { error: insErr } = await supabase.from("access_codes").insert({
+        code,
+        email: newCodeEmail.trim().toLowerCase(),
+        org_id: activeOrgId,
+        created_by: userId,
+      });
+      if (insErr) throw insErr;
+      setNewCodeEmail("");
+      await loadAccessCodes();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAccessCode = async (id) => {
+    if (!supabase) return;
+    await supabase.from("access_codes").delete().eq("id", id);
+    setAccessCodes((prev) => prev.filter((c) => c.id !== id));
   };
 
   const handleApproveRequest = async (req) => {
@@ -712,6 +762,90 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Access Codes (admin only, collapsible) ── */}
+        {isAdmin && (
+          <>
+            <hr className="border-[var(--border)]" />
+            <div>
+              <button
+                onClick={() => setShowAccessCodes(!showAccessCodes)}
+                className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+              >
+                <span className="transition-transform" style={{ transform: showAccessCodes ? "rotate(90deg)" : "" }}>
+                  ▸
+                </span>
+                Tilgangskoder ({accessCodes.filter((c) => !c.used_at).length} aktive)
+              </button>
+
+              {showAccessCodes && (
+                <div className="mt-3 space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      placeholder="E-post for ny tilgangskode…"
+                      value={newCodeEmail}
+                      onChange={(e) => setNewCodeEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateAccessCode()}
+                      className={inputClass}
+                    />
+                    <button
+                      onClick={handleCreateAccessCode}
+                      disabled={loading || !newCodeEmail.trim()}
+                      className="rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer transition-all text-white disabled:opacity-50"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      Generer
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                    {accessCodes.length === 0 && (
+                      <p className="text-xs text-[var(--text-secondary)] italic">Ingen tilgangskoder opprettet ennå</p>
+                    )}
+                    {accessCodes.map((ac) => (
+                      <div
+                        key={ac.id}
+                        className={`rounded-lg border p-2.5 flex items-center justify-between ${
+                          ac.used_at ? "border-green-200 bg-green-50" : "border-[var(--accent)]/30 bg-[var(--accent)]/5"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <code className="text-sm font-bold font-mono text-[var(--text-primary)] tracking-wider">{ac.code}</code>
+                            {ac.used_at && (
+                              <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-green-200 text-green-800">Brukt</span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-[var(--text-secondary)] truncate">
+                            {ac.email} — {new Date(ac.created_at).toLocaleDateString("nb-NO", { day: "numeric", month: "short" })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                          {!ac.used_at && (
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(ac.code); }}
+                              className="text-[var(--accent)] hover:opacity-70 cursor-pointer text-xs px-1.5 py-0.5 rounded border border-[var(--accent)]/30"
+                              title="Kopier kode"
+                            >
+                              📋
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteAccessCode(ac.id)}
+                            className="text-red-400 hover:text-red-600 cursor-pointer text-[10px]"
+                            title="Slett"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
