@@ -17,6 +17,9 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
   const [showApproved, setShowApproved] = useState(false);
   const [showAccessRequests, setShowAccessRequests] = useState(false);
   const [accessRequests, setAccessRequests] = useState([]);
+  const [showPasswordResets, setShowPasswordResets] = useState(false);
+  const [passwordResets, setPasswordResets] = useState([]);
+  const [resetPasswords, setResetPasswords] = useState({}); // { [requestId]: "newPassword" }
 
   const isAdmin = myRole === "admin";
 
@@ -90,6 +93,63 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
   }, []);
 
   useEffect(() => { if (showAccessRequests) loadAccessRequests(); }, [showAccessRequests, loadAccessRequests]);
+
+  // ── Load password reset requests ──
+  const loadPasswordResets = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase
+      .from("password_reset_requests")
+      .select("id, email, status, created_at")
+      .order("created_at", { ascending: false });
+    if (data) setPasswordResets(data);
+  }, []);
+
+  useEffect(() => { if (showPasswordResets) loadPasswordResets(); }, [showPasswordResets, loadPasswordResets]);
+
+  const handleResetPassword = async (req) => {
+    const newPassword = resetPasswords[req.id];
+    if (!newPassword || newPassword.length < 6) {
+      setError("Passordet må være minst 6 tegn");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ requestId: req.id, email: req.email, newPassword }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Noe gikk galt");
+      setResetPasswords((prev) => { const n = { ...prev }; delete n[req.id]; return n; });
+      await loadPasswordResets();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectReset = async (req) => {
+    if (!supabase) return;
+    setLoading(true);
+    try {
+      await supabase
+        .from("password_reset_requests")
+        .update({ status: "rejected", handled_by: userId, handled_at: new Date().toISOString() })
+        .eq("id", req.id);
+      await loadPasswordResets();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleApproveRequest = async (req) => {
     if (!supabase) return;
@@ -567,6 +627,87 @@ export default function OrgManager({ userId, onClose, onOrgChange }) {
                           >
                             ✕ Avslå
                           </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Password Reset Requests (admin only, collapsible) ── */}
+        {isAdmin && (
+          <>
+            <hr className="border-[var(--border)]" />
+            <div>
+              <button
+                onClick={() => setShowPasswordResets(!showPasswordResets)}
+                className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+              >
+                <span className="transition-transform" style={{ transform: showPasswordResets ? "rotate(90deg)" : "" }}>
+                  ▸
+                </span>
+                Passord-forespørsler ({passwordResets.filter((r) => r.status === "pending").length} ventende)
+              </button>
+
+              {showPasswordResets && (
+                <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
+                  {passwordResets.length === 0 && (
+                    <p className="text-xs text-[var(--text-secondary)] italic">Ingen forespørsler ennå</p>
+                  )}
+                  {passwordResets.map((req) => (
+                    <div
+                      key={req.id}
+                      className={`rounded-lg border p-3 space-y-2 ${
+                        req.status === "pending"
+                          ? "border-amber-300 bg-amber-50"
+                          : req.status === "completed"
+                          ? "border-green-200 bg-green-50"
+                          : "border-red-200 bg-red-50"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--text-primary)]">{req.email}</p>
+                          <p className="text-[10px] text-[var(--text-secondary)]">
+                            {new Date(req.created_at).toLocaleDateString("nb-NO", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          req.status === "pending" ? "bg-amber-200 text-amber-800"
+                          : req.status === "completed" ? "bg-green-200 text-green-800"
+                          : "bg-red-200 text-red-800"
+                        }`}>
+                          {req.status === "pending" ? "Venter" : req.status === "completed" ? "Fullført" : "Avslått"}
+                        </span>
+                      </div>
+                      {req.status === "pending" && (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            placeholder="Nytt passord (minst 6 tegn)…"
+                            value={resetPasswords[req.id] || ""}
+                            onChange={(e) => setResetPasswords((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                            className={inputClass}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleResetPassword(req)}
+                              disabled={loading || !(resetPasswords[req.id]?.length >= 6)}
+                              className="flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer text-white bg-[var(--accent)] hover:opacity-90 transition-colors disabled:opacity-50"
+                            >
+                              🔑 Sett nytt passord
+                            </button>
+                            <button
+                              onClick={() => handleRejectReset(req)}
+                              disabled={loading}
+                              className="rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

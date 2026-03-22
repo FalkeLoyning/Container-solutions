@@ -112,7 +112,7 @@ export default function LoginScreen({ onLogin }) {
         const body = await res.json();
         throw new Error(body.error || "Noe gikk galt");
       }
-      setSuccess("Forespørselen er sendt! Du vil motta en e-post med lenke for å tilbakestille passordet.");
+      setSuccess("Forespørselen er sendt! En administrator vil tilbakestille passordet ditt.");
     } catch (err) {
       setError(err.message);
     } finally {
