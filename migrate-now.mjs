@@ -1,20 +1,16 @@
 import pg from "pg";
-import { readFileSync } from "fs";
-import { config } from "dotenv";
 
-config({ path: ".env.local" });
+const connStr = "postgresql://postgres:Floeynin123@db.olrasqylcfunaoqvaxie.supabase.co:5432/postgres";
 
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const dbPassword = process.argv[2]; // optional: database password
+// Force IPv4 by resolving manually
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
 
-if (!supabaseUrl) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL in .env.local");
-  process.exit(1);
-}
-
-const ref = supabaseUrl.replace("https://", "").replace(".supabase.co", "");
-console.log(`Project: ${ref}\n`);
+const client = new pg.Client({
+  connectionString: connStr,
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 15000,
+});
 
 const sql = `
 CREATE TABLE IF NOT EXISTS public.shared_configs (
@@ -69,61 +65,19 @@ DO $$ BEGIN
 END $$;
 `;
 
-// Build list of connection configs to try
-const configs = [];
-
-if (dbPassword) {
-  configs.push({
-    name: "Database password (pooler)",
-    connectionString: `postgresql://postgres.${ref}:${encodeURIComponent(dbPassword)}@aws-0-eu-north-1.pooler.supabase.com:6543/postgres`,
-  });
-  configs.push({
-    name: "Database password (direct)",
-    connectionString: `postgresql://postgres:${encodeURIComponent(dbPassword)}@db.${ref}.supabase.co:5432/postgres`,
-  });
-}
-
-if (serviceRoleKey) {
-  configs.push({
-    name: "Service role JWT (pooler transaction)",
-    connectionString: `postgresql://postgres.${ref}:${serviceRoleKey}@aws-0-eu-north-1.pooler.supabase.com:6543/postgres`,
-  });
-  configs.push({
-    name: "Service role JWT (pooler session)",
-    connectionString: `postgresql://postgres.${ref}:${serviceRoleKey}@aws-0-eu-north-1.pooler.supabase.com:5432/postgres`,
-  });
-}
-
-let success = false;
-
-for (const cfg of configs) {
-  console.log(`Trying: ${cfg.name}...`);
-  const client = new pg.Client({
-    connectionString: cfg.connectionString,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 10000,
-  });
-  try {
-    await client.connect();
-    console.log("  Connected!");
-    await client.query(sql);
-    
-    const { rows } = await client.query(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('shared_configs','password_reset_requests') ORDER BY table_name"
-    );
-    console.log("\n✅ Migration complete! Tables:");
-    rows.forEach(r => console.log(`   ✓ ${r.table_name}`));
-    await client.end();
-    success = true;
-    break;
-  } catch (err) {
-    console.log(`  ✗ ${err.message.substring(0, 120)}`);
-    try { await client.end(); } catch {}
-  }
-}
-
-if (!success) {
-  console.log("\n❌ Kunne ikke koble til. Prøv med database-passord:");
-  console.log("   node run-migration.mjs <DATABASE_PASSWORD>");
-  console.log("   Finn passordet i Supabase Dashboard → Settings → Database → Database password");
+try {
+  console.log("Connecting...");
+  await client.connect();
+  console.log("Connected! Running migration...");
+  await client.query(sql);
+  
+  const { rows } = await client.query(
+    "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('shared_configs','password_reset_requests') ORDER BY table_name"
+  );
+  console.log("\n✅ Migration complete! Tables:");
+  rows.forEach(r => console.log(`   ✓ ${r.table_name}`));
+  await client.end();
+} catch (err) {
+  console.error("❌ Error:", err.message);
+  try { await client.end(); } catch {}
 }

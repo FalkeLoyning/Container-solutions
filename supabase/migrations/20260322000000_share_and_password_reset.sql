@@ -1,22 +1,5 @@
-import pg from "pg";
-import { readFileSync } from "fs";
-import { config } from "dotenv";
+-- shared_configs + password_reset_requests tables
 
-config({ path: ".env.local" });
-
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const dbPassword = process.argv[2]; // optional: database password
-
-if (!supabaseUrl) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL in .env.local");
-  process.exit(1);
-}
-
-const ref = supabaseUrl.replace("https://", "").replace(".supabase.co", "");
-console.log(`Project: ${ref}\n`);
-
-const sql = `
 CREATE TABLE IF NOT EXISTS public.shared_configs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   config jsonb NOT NULL,
@@ -27,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.shared_configs (
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.shared_configs ENABLE ROW LEVEL SECURITY;
+
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='shared_configs' AND policyname='Anyone can read shared configs') THEN
     CREATE POLICY "Anyone can read shared configs" ON public.shared_configs FOR SELECT USING (true);
@@ -52,6 +36,7 @@ CREATE TABLE IF NOT EXISTS public.password_reset_requests (
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.password_reset_requests ENABLE ROW LEVEL SECURITY;
+
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='password_reset_requests' AND policyname='Anyone can request password reset') THEN
     CREATE POLICY "Anyone can request password reset" ON public.password_reset_requests FOR INSERT WITH CHECK (true);
@@ -67,63 +52,3 @@ DO $$ BEGIN
     CREATE POLICY "Authenticated users can update reset requests" ON public.password_reset_requests FOR UPDATE USING (auth.uid() IS NOT NULL);
   END IF;
 END $$;
-`;
-
-// Build list of connection configs to try
-const configs = [];
-
-if (dbPassword) {
-  configs.push({
-    name: "Database password (pooler)",
-    connectionString: `postgresql://postgres.${ref}:${encodeURIComponent(dbPassword)}@aws-0-eu-north-1.pooler.supabase.com:6543/postgres`,
-  });
-  configs.push({
-    name: "Database password (direct)",
-    connectionString: `postgresql://postgres:${encodeURIComponent(dbPassword)}@db.${ref}.supabase.co:5432/postgres`,
-  });
-}
-
-if (serviceRoleKey) {
-  configs.push({
-    name: "Service role JWT (pooler transaction)",
-    connectionString: `postgresql://postgres.${ref}:${serviceRoleKey}@aws-0-eu-north-1.pooler.supabase.com:6543/postgres`,
-  });
-  configs.push({
-    name: "Service role JWT (pooler session)",
-    connectionString: `postgresql://postgres.${ref}:${serviceRoleKey}@aws-0-eu-north-1.pooler.supabase.com:5432/postgres`,
-  });
-}
-
-let success = false;
-
-for (const cfg of configs) {
-  console.log(`Trying: ${cfg.name}...`);
-  const client = new pg.Client({
-    connectionString: cfg.connectionString,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 10000,
-  });
-  try {
-    await client.connect();
-    console.log("  Connected!");
-    await client.query(sql);
-    
-    const { rows } = await client.query(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('shared_configs','password_reset_requests') ORDER BY table_name"
-    );
-    console.log("\n✅ Migration complete! Tables:");
-    rows.forEach(r => console.log(`   ✓ ${r.table_name}`));
-    await client.end();
-    success = true;
-    break;
-  } catch (err) {
-    console.log(`  ✗ ${err.message.substring(0, 120)}`);
-    try { await client.end(); } catch {}
-  }
-}
-
-if (!success) {
-  console.log("\n❌ Kunne ikke koble til. Prøv med database-passord:");
-  console.log("   node run-migration.mjs <DATABASE_PASSWORD>");
-  console.log("   Finn passordet i Supabase Dashboard → Settings → Database → Database password");
-}
