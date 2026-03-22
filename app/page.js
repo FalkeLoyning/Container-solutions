@@ -87,6 +87,8 @@ export default function Home() {
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [projectDialogTab, setProjectDialogTab] = useState("save");
   const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(false);
 
   // Auth listener (only if Supabase is configured)
   useEffect(() => {
@@ -144,7 +146,7 @@ export default function Home() {
       {/* Top header bar (only when logged in) */}
       {loggedIn && (
         <div
-          className="fixed top-0 left-80 right-72 h-10 z-30 flex items-center justify-between px-4 border-b"
+          className="fixed top-0 left-0 lg:left-80 right-0 lg:right-72 h-10 z-30 flex items-center justify-between px-4 border-b"
           style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
         >
           <div className="flex items-center gap-3 text-xs">
@@ -176,19 +178,39 @@ export default function Home() {
       )}
 
       {/* Left panel */}
-      <Sidebar userId={userId} orgId={orgId} />
+      <Sidebar userId={userId} orgId={orgId} open={showLeft} onClose={() => setShowLeft(false)} />
 
       {/* Center – 3D Viewer */}
-      <div className={`fixed ${loggedIn ? "top-10" : "top-0"} bottom-0 left-80 right-72`}>
+      <div className={`fixed ${loggedIn ? "top-10" : "top-0"} bottom-0 left-0 right-0 lg:left-80 lg:right-72`}>
         <Canvas3D />
       </div>
 
       {/* Right panel */}
       <ActiveFeatures
         loggedIn={loggedIn}
+        open={showRight}
+        onClose={() => setShowRight(false)}
         onSaveProject={() => { setProjectDialogTab("save"); setShowProjectDialog(true); }}
         onLoadProject={() => { setProjectDialogTab("load"); setShowProjectDialog(true); }}
       />
+
+      {/* Mobile toggle buttons */}
+      <div className="fixed bottom-4 left-4 right-4 flex justify-between z-20 lg:hidden pointer-events-none">
+        <button
+          onClick={() => setShowLeft(true)}
+          className="pointer-events-auto w-12 h-12 rounded-full bg-[var(--accent)] text-white shadow-lg flex items-center justify-center text-xl active:scale-95 transition-transform"
+          aria-label="Vis konfigurasjon"
+        >
+          ⚙️
+        </button>
+        <button
+          onClick={() => setShowRight(true)}
+          className="pointer-events-auto w-12 h-12 rounded-full bg-[var(--accent)] text-white shadow-lg flex items-center justify-center text-xl active:scale-95 transition-transform"
+          aria-label="Vis sammendrag"
+        >
+          📋
+        </button>
+      </div>
 
       {/* Drawing overlay */}
       {showDrawing && <DrawingPreview />}

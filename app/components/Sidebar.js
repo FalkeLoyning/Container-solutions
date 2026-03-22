@@ -234,7 +234,7 @@ function ElementCard({ el, isSelected }) {
   );
 }
 
-export default function Sidebar({ userId, orgId }) {
+export default function Sidebar({ userId, orgId, open, onClose }) {
   const elements = useConfigStore((s) => s.elements);
   const selectedId = useConfigStore((s) => s.selectedId);
   const placementMode = useConfigStore((s) => s.placementMode);
@@ -340,7 +340,25 @@ export default function Sidebar({ userId, orgId }) {
   const vents = elements.filter((e) => e.type === "ventilation");
 
   return (
-    <aside className="fixed top-0 left-0 bottom-0 w-80 overflow-y-auto p-4 space-y-4 border-r border-[var(--border)] bg-[var(--bg-card)] z-20">
+    <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside className={`fixed top-0 left-0 bottom-0 w-80 overflow-y-auto p-4 space-y-4 border-r border-[var(--border)] bg-[var(--bg-card)] z-40 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:z-20 ${
+        open ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        {/* Mobile close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--bg-input)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] lg:hidden z-10"
+          aria-label="Lukk"
+        >
+          ✕
+        </button>
       <div className="mb-2">
         <h2 className="text-lg font-bold">⚙️ Konfigurasjon</h2>
         <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -840,5 +858,6 @@ export default function Sidebar({ userId, orgId }) {
         )}
       </div>
     </aside>
+    </>
   );
 }

@@ -113,7 +113,7 @@ function ShareButton() {
   );
 }
 
-export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn }) {
+export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn, open, onClose }) {
   const elements = useConfigStore((s) => s.elements);
   const roofType = useConfigStore((s) => s.roofType);
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
@@ -131,7 +131,25 @@ export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn 
   const anyActive = elements.length > 0 || roofType !== "flat" || aluminumFloor.enabled || containerRal || cladding.enabled || insulation.enabled;
 
   return (
-    <aside className="fixed top-0 right-0 bottom-0 w-72 overflow-y-auto p-4 space-y-4 border-l border-[var(--border)] bg-[var(--bg-card)] z-20">
+<>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside className={`fixed top-0 right-0 bottom-0 w-72 overflow-y-auto p-4 space-y-4 border-l border-[var(--border)] bg-[var(--bg-card)] z-40 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:z-20 ${
+        open ? "translate-x-0" : "translate-x-full"
+      }`}>
+        {/* Mobile close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--bg-input)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] lg:hidden z-10"
+          aria-label="Lukk"
+        >
+          ✕
+        </button>
       <h2 className="text-lg font-bold">📋 Oppsummering</h2>
 
       {!anyActive && (
@@ -264,5 +282,6 @@ export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn 
         {loggedIn && <ShareButton />}
       </div>
     </aside>
+    </>
   );
 }
