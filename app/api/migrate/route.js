@@ -72,5 +72,4 @@ export async function POST(request) {
   }
 
   return NextResponse.json({ error: "All connection methods failed", attempts: errors }, { status: 500 });
-  }
 }
