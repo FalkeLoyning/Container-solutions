@@ -8,7 +8,7 @@ export async function POST(request) {
   const { secret } = await request.json();
   
   // Simple secret check
-  if (secret !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!secret || secret.trim() !== process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
