@@ -101,14 +101,18 @@ export default function LoginScreen({ onLogin }) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    if (!supabase) { setError("Supabase er ikke konfigurert"); return; }
     setLoading(true);
     try {
-      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin,
+      const res = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (resetErr) throw resetErr;
-      setSuccess("En e-post med lenke for å tilbakestille passordet er sendt.");
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error || "Noe gikk galt");
+      }
+      setSuccess("Forespørselen er sendt! Du vil motta en e-post med lenke for å tilbakestille passordet.");
     } catch (err) {
       setError(err.message);
     } finally {
