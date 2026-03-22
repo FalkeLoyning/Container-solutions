@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import useConfigStore, { CONTAINER_SIZES, RAL_COLORS } from "../store/useConfigStore";
+import { supabase } from "../lib/supabase";
 
 const WALL_LABELS = { front: "Front", back: "Bak", left: "Venstre", right: "Høyre" };
 
@@ -18,9 +20,102 @@ function FeatureRow({ label, values }) {
   );
 }
 
+function ShareButton() {
+  const [loading, setLoading] = useState(false);
+  const [shareUrl, setShareUrl] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState(null);
+  const exportConfig = useConfigStore((s) => s.exportConfig);
+
+  const handleShare = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      if (!token) throw new Error("Ikke innlogget");
+
+      const config = exportConfig();
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ config }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error || "Feil ved deling");
+      }
+
+      const { id } = await res.json();
+      const url = `${window.location.origin}/share/${id}`;
+      setShareUrl(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (shareUrl) {
+    return (
+      <div className="mt-2 p-3 rounded-xl border border-green-200 bg-green-50 space-y-2">
+        <p className="text-[11px] font-semibold text-green-700">🔗 Delings-lenke (gyldig 14 dager)</p>
+        <div className="flex gap-1.5">
+          <input
+            readOnly
+            value={shareUrl}
+            className="flex-1 text-[10px] px-2 py-1.5 rounded-lg bg-white border border-green-200 text-[var(--text-primary)] font-mono"
+            onFocus={(e) => e.target.select()}
+          />
+          <button
+            onClick={handleCopy}
+            className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors shrink-0"
+          >
+            {copied ? "✓ Kopiert!" : "Kopier"}
+          </button>
+        </div>
+        <button
+          onClick={() => setShareUrl(null)}
+          className="text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          Lukk
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={handleShare}
+        disabled={loading}
+        className="w-full py-2 px-3 rounded-xl font-semibold text-xs transition-all
+          border border-green-300 text-green-700 hover:bg-green-50 cursor-pointer
+          disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? "Genererer lenke…" : "🔗 Del med kunde"}
+      </button>
+      {error && (
+        <p className="text-[10px] text-red-500 mt-1">{error}</p>
+      )}
+    </div>
+  );
+}
+
 export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn }) {
   const elements = useConfigStore((s) => s.elements);
-  const slopedRoof = useConfigStore((s) => s.slopedRoof);
+  const roofType = useConfigStore((s) => s.roofType);
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
   const containerRal = useConfigStore((s) => s.containerRal);
   const cladding = useConfigStore((s) => s.cladding);
@@ -33,7 +128,7 @@ export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn 
   const doors = elements.filter((e) => e.type === "door");
   const vents = elements.filter((e) => e.type === "ventilation");
 
-  const anyActive = elements.length > 0 || slopedRoof.enabled || aluminumFloor.enabled || containerRal || cladding.enabled || insulation.enabled;
+  const anyActive = elements.length > 0 || roofType !== "flat" || aluminumFloor.enabled || containerRal || cladding.enabled || insulation.enabled;
 
   return (
     <aside className="fixed top-0 right-0 bottom-0 w-72 overflow-y-auto p-4 space-y-4 border-l border-[var(--border)] bg-[var(--bg-card)] z-20">
@@ -70,8 +165,12 @@ export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn 
         />
       ))}
 
-      {slopedRoof.enabled && (
+      {roofType === "sloped" && (
         <FeatureRow label="📐 Skråtak" values={[["Type", "400mm fall mot front"]]} />
+      )}
+
+      {roofType === "gable" && (
+        <FeatureRow label="🏠 Saltak" values={[["Type", "Saltak med møne, renne begge sider"]]} />
       )}
 
       {aluminumFloor.enabled && (
@@ -161,6 +260,8 @@ export default function ActiveFeatures({ onSaveProject, onLoadProject, loggedIn 
             </button>
           </div>
         )}
+
+        {loggedIn && <ShareButton />}
       </div>
     </aside>
   );

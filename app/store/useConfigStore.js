@@ -102,7 +102,7 @@ const useConfigStore = create((set, get) => ({
   unlockedId: null,
 
   // Global toggles
-  slopedRoof: { enabled: false },
+  roofType: "flat", // "flat" | "sloped" | "gable"
   aluminumFloor: { enabled: false },
 
   showDrawing: false,
@@ -117,7 +117,7 @@ const useConfigStore = create((set, get) => ({
   hiddenWalls: new Set(),
 
   // Container door (standard double door)
-  containerDoor: { enabled: false, wall: "front" },
+  containerDoor: { enabled: true, wall: "front" },
 
   // Interior insulation (perforated panels, 50mm)
   insulation: { enabled: false, walls: new Set(["front", "back", "left", "right", "roof"]) },
@@ -213,8 +213,7 @@ const useConfigStore = create((set, get) => ({
   toggleUnlock: (id) =>
     set((s) => ({ unlockedId: s.unlockedId === id ? null : id })),
 
-  toggleSlopedRoof: () =>
-    set((s) => ({ slopedRoof: { enabled: !s.slopedRoof.enabled } })),
+  setRoofType: (type) => set({ roofType: type }),
 
   toggleAluminumFloor: () =>
     set((s) => ({ aluminumFloor: { enabled: !s.aluminumFloor.enabled } })),
@@ -304,7 +303,7 @@ const useConfigStore = create((set, get) => ({
     return {
       containerSize: s.containerSize,
       elements: s.elements,
-      slopedRoof: s.slopedRoof,
+      roofType: s.roofType,
       aluminumFloor: s.aluminumFloor,
       containerColor: s.containerColor,
       containerRal: s.containerRal,
@@ -321,14 +320,14 @@ const useConfigStore = create((set, get) => ({
     set({
       containerSize: data.containerSize,
       elements: data.elements || [],
-      slopedRoof: data.slopedRoof || { enabled: false },
+      roofType: data.roofType || (data.slopedRoof?.enabled ? "sloped" : "flat"),
       aluminumFloor: data.aluminumFloor || { enabled: false },
       containerColor: data.containerColor || "#94a3b8",
       containerRal: data.containerRal || null,
       paintType: data.paintType || null,
       cladding: data.cladding || { enabled: false, direction: "horizontal", color: "#8B7355", ral: null },
       hiddenWalls: new Set(data.hiddenWalls || []),
-      containerDoor: data.containerDoor || { enabled: false, wall: "front" },
+      containerDoor: data.containerDoor || { enabled: true, wall: "front" },
       insulation: {
         enabled: data.insulation?.enabled || false,
         walls: new Set(data.insulation?.walls || ["front", "back", "left", "right", "roof"]),

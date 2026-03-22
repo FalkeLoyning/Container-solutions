@@ -238,11 +238,11 @@ export default function Sidebar({ userId, orgId }) {
   const elements = useConfigStore((s) => s.elements);
   const selectedId = useConfigStore((s) => s.selectedId);
   const placementMode = useConfigStore((s) => s.placementMode);
-  const slopedRoof = useConfigStore((s) => s.slopedRoof);
+  const roofType = useConfigStore((s) => s.roofType);
   const aluminumFloor = useConfigStore((s) => s.aluminumFloor);
   const startPlacement = useConfigStore((s) => s.startPlacement);
   const cancelPlacement = useConfigStore((s) => s.cancelPlacement);
-  const toggleSlopedRoof = useConfigStore((s) => s.toggleSlopedRoof);
+  const setRoofType = useConfigStore((s) => s.setRoofType);
   const toggleAluminumFloor = useConfigStore((s) => s.toggleAluminumFloor);
   const containerColor = useConfigStore((s) => s.containerColor);
   const containerRal = useConfigStore((s) => s.containerRal);
@@ -699,12 +699,38 @@ export default function Sidebar({ userId, orgId }) {
         <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
           Globale valg
         </h3>
-        <Toggle label="📐 Skråtak" checked={slopedRoof.enabled} onChange={toggleSlopedRoof} />
-        {slopedRoof.enabled && (
-          <p className="text-xs text-[var(--text-secondary)] pl-[52px]">
-            6% fall langside · Alltid sort
-          </p>
-        )}
+        <div>
+          <p className="text-xs font-medium text-[var(--text-primary)] mb-1.5">Taktype</p>
+          <div className="flex gap-1.5">
+            {[
+              { value: "flat", label: "Flat" },
+              { value: "sloped", label: "Skråtak" },
+              { value: "gable", label: "Saltak" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setRoofType(opt.value)}
+                className={`flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md border transition-all ${
+                  roofType === opt.value
+                    ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--accent)]"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {roofType === "sloped" && (
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              6% fall langside · Renne + nedløp
+            </p>
+          )}
+          {roofType === "gable" && (
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              Saltak med møne · Renne + nedløp begge sider
+            </p>
+          )}
+        </div>
         <Toggle label="🪵 Aluminium gulvplate" checked={aluminumFloor.enabled} onChange={toggleAluminumFloor} />
       </div>
 

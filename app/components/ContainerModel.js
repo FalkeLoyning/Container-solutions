@@ -309,7 +309,8 @@ function ForkliftPockets() {
 }
 
 function SlopedRoof() {
-  const { L, W, H } = useDims();
+  const containerColor = useConfigStore((s) => s.containerColor);
+  const { L, W, H, T } = useDims();
   // 6% slope across width (left z=0 high, right z=W low)
   const rise = W * 0.06;
   const roofMat = <meshStandardMaterial color="#0E0E10" metalness={0.4} roughness={0.6} side={2} />;
@@ -335,8 +336,34 @@ function SlopedRoof() {
     L, H, W,
   ]);
 
+  // ── High-side closing panel (z=0, from H to H+rise, full length L) ──
+  // This is a rectangle on the left wall closing the gap between flat roof and peak
+  const highSideVerts = new Float32Array([
+    0, H,        0,
+    L, H,        0,
+    0, H + rise, 0,
+    L, H + rise, 0,
+  ]);
+  const quadIdx = new Uint16Array([0, 2, 1, 1, 2, 3]);
+
+  // ── Gutter along low edge (z=W, at height H) ──
+  const gutterLen = L + 0.02;  // slightly longer than container
+  const gutterW = 0.12;        // 120mm wide gutter
+  const gutterH = 0.06;        // 60mm tall
+  const gutterThick = 0.003;   // 3mm sheet metal
+  const gutterColor = "#4a4a4a";
+
+  // ── Downpipe from gutter to ground ──
+  const pipeRadius = 0.04;     // Ø80mm
+  const pipeHeight = H;        // from roof to ground
+  const pipeColor = "#4a4a4a";
+  // Position: back-right corner (x=0, z=W)
+  const pipeX = 0.06;
+  const pipeZ = W + gutterW / 2;
+
   return (
     <group>
+      {/* Main sloped panel */}
       <mesh receiveShadow>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" array={panelVerts} count={4} itemSize={3} />
@@ -344,6 +371,7 @@ function SlopedRoof() {
         </bufferGeometry>
         {roofMat}
       </mesh>
+      {/* Back gable triangle */}
       <mesh>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" array={backGableVerts} count={3} itemSize={3} />
@@ -351,6 +379,7 @@ function SlopedRoof() {
         </bufferGeometry>
         {roofMat}
       </mesh>
+      {/* Front gable triangle */}
       <mesh>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" array={frontGableVerts} count={3} itemSize={3} />
@@ -358,6 +387,224 @@ function SlopedRoof() {
         </bufferGeometry>
         {roofMat}
       </mesh>
+
+      {/* ── High-side closing panel ── */}
+      <mesh>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={highSideVerts} count={4} itemSize={3} />
+          <bufferAttribute attach="index" array={quadIdx} count={6} itemSize={1} />
+        </bufferGeometry>
+        <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.5} side={2} />
+      </mesh>
+
+      {/* ── Gutter (U-shaped trough along low edge z=W) ── */}
+      <group position={[L / 2, H - gutterH / 2, W + gutterW / 2]}>
+        {/* Bottom of gutter */}
+        <mesh position={[0, -gutterH / 2 + gutterThick / 2, 0]}>
+          <boxGeometry args={[gutterLen, gutterThick, gutterW]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Inner wall (container side) */}
+        <mesh position={[0, 0, -gutterW / 2 + gutterThick / 2]}>
+          <boxGeometry args={[gutterLen, gutterH, gutterThick]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Outer wall */}
+        <mesh position={[0, 0, gutterW / 2 - gutterThick / 2]}>
+          <boxGeometry args={[gutterLen, gutterH, gutterThick]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Left end cap */}
+        <mesh position={[-gutterLen / 2 + gutterThick / 2, 0, 0]}>
+          <boxGeometry args={[gutterThick, gutterH, gutterW]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Right end cap */}
+        <mesh position={[gutterLen / 2 - gutterThick / 2, 0, 0]}>
+          <boxGeometry args={[gutterThick, gutterH, gutterW]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+      </group>
+
+      {/* ── Downpipe (back-right corner) ── */}
+      <group position={[pipeX, 0, pipeZ]}>
+        {/* Vertical pipe */}
+        <mesh position={[0, pipeHeight / 2, 0]}>
+          <cylinderGeometry args={[pipeRadius, pipeRadius, pipeHeight, 12]} />
+          <meshStandardMaterial color={pipeColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Elbow at top connecting to gutter */}
+        <mesh position={[0, pipeHeight - 0.02, -0.03]} rotation={[Math.PI / 4, 0, 0]}>
+          <cylinderGeometry args={[pipeRadius, pipeRadius, 0.1, 12]} />
+          <meshStandardMaterial color={pipeColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Ground splash plate */}
+        <mesh position={[0, 0.005, 0.04]}>
+          <boxGeometry args={[0.12, 0.01, 0.15]} />
+          <meshStandardMaterial color="#6b7280" metalness={0.3} roughness={0.7} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// ── Gable (saltak) roof ──────────────────────────────────────
+// Ridge runs along container length (X axis), center of width.
+// Slopes down to both sides (z=0 and z=W).
+function GableRoof() {
+  const containerColor = useConfigStore((s) => s.containerColor);
+  const { L, W, H, T } = useDims();
+  const rise = W * 0.08; // 8% pitch → visible ridge
+  const ridgeY = H + rise;
+  const roofMat = <meshStandardMaterial color="#0E0E10" metalness={0.4} roughness={0.6} side={2} />;
+
+  // Left slope (ridge → z=0)
+  const leftVerts = new Float32Array([
+    0, ridgeY, W / 2,
+    L, ridgeY, W / 2,
+    0, H,      0,
+    L, H,      0,
+  ]);
+  // Right slope (ridge → z=W)
+  const rightVerts = new Float32Array([
+    0, ridgeY, W / 2,
+    L, ridgeY, W / 2,
+    0, H,      W,
+    L, H,      W,
+  ]);
+  const slopeIdx = new Uint16Array([0, 2, 1, 1, 2, 3]);
+
+  // Back gable triangle (x=0)
+  const backGableVerts = new Float32Array([
+    0, H,      0,
+    0, ridgeY, W / 2,
+    0, H,      W,
+  ]);
+  const triIdx = new Uint16Array([0, 1, 2]);
+
+  // Front gable triangle (x=L)
+  const frontGableVerts = new Float32Array([
+    L, H,      0,
+    L, ridgeY, W / 2,
+    L, H,      W,
+  ]);
+
+  // Ridge cap (decorative strip along the peak)
+  const ridgeCapW = 0.08; // 80mm wide cap
+  const ridgeCapH = 0.006;
+
+  // Gutter dimensions
+  const gutterLen = L + 0.02;
+  const gutterW = 0.12;
+  const gutterH = 0.06;
+  const gutterThick = 0.003;
+  const gutterColor = "#4a4a4a";
+
+  // Downpipe dimensions
+  const pipeRadius = 0.04;
+  const pipeColor = "#4a4a4a";
+
+  function Gutter({ zPos }) {
+    return (
+      <group position={[L / 2, H - gutterH / 2, zPos]}>
+        {/* Bottom */}
+        <mesh position={[0, -gutterH / 2 + gutterThick / 2, 0]}>
+          <boxGeometry args={[gutterLen, gutterThick, gutterW]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Inner wall */}
+        <mesh position={[0, 0, zPos < W / 2 ? gutterW / 2 - gutterThick / 2 : -gutterW / 2 + gutterThick / 2]}>
+          <boxGeometry args={[gutterLen, gutterH, gutterThick]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Outer wall */}
+        <mesh position={[0, 0, zPos < W / 2 ? -gutterW / 2 + gutterThick / 2 : gutterW / 2 - gutterThick / 2]}>
+          <boxGeometry args={[gutterLen, gutterH, gutterThick]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* End caps */}
+        <mesh position={[-gutterLen / 2 + gutterThick / 2, 0, 0]}>
+          <boxGeometry args={[gutterThick, gutterH, gutterW]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        <mesh position={[gutterLen / 2 - gutterThick / 2, 0, 0]}>
+          <boxGeometry args={[gutterThick, gutterH, gutterW]} />
+          <meshStandardMaterial color={gutterColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+      </group>
+    );
+  }
+
+  function Downpipe({ x, z }) {
+    const pipeH = H;
+    return (
+      <group position={[x, 0, z]}>
+        <mesh position={[0, pipeH / 2, 0]}>
+          <cylinderGeometry args={[pipeRadius, pipeRadius, pipeH, 12]} />
+          <meshStandardMaterial color={pipeColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Elbow at top */}
+        <mesh position={[0, pipeH - 0.02, z < W / 2 ? 0.03 : -0.03]} rotation={[z < W / 2 ? -Math.PI / 4 : Math.PI / 4, 0, 0]}>
+          <cylinderGeometry args={[pipeRadius, pipeRadius, 0.1, 12]} />
+          <meshStandardMaterial color={pipeColor} metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Splash plate */}
+        <mesh position={[0, 0.005, z < W / 2 ? -0.04 : 0.04]}>
+          <boxGeometry args={[0.12, 0.01, 0.15]} />
+          <meshStandardMaterial color="#6b7280" metalness={0.3} roughness={0.7} />
+        </mesh>
+      </group>
+    );
+  }
+
+  return (
+    <group>
+      {/* Left slope */}
+      <mesh receiveShadow>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={leftVerts} count={4} itemSize={3} />
+          <bufferAttribute attach="index" array={slopeIdx} count={6} itemSize={1} />
+        </bufferGeometry>
+        {roofMat}
+      </mesh>
+      {/* Right slope */}
+      <mesh receiveShadow>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={rightVerts} count={4} itemSize={3} />
+          <bufferAttribute attach="index" array={slopeIdx} count={6} itemSize={1} />
+        </bufferGeometry>
+        {roofMat}
+      </mesh>
+      {/* Back gable */}
+      <mesh>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={backGableVerts} count={3} itemSize={3} />
+          <bufferAttribute attach="index" array={triIdx} count={3} itemSize={1} />
+        </bufferGeometry>
+        <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.5} side={2} />
+      </mesh>
+      {/* Front gable */}
+      <mesh>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" array={frontGableVerts} count={3} itemSize={3} />
+          <bufferAttribute attach="index" array={triIdx} count={3} itemSize={1} />
+        </bufferGeometry>
+        <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.5} side={2} />
+      </mesh>
+
+      {/* Ridge cap */}
+      <mesh position={[L / 2, ridgeY + ridgeCapH / 2, W / 2]}>
+        <boxGeometry args={[L + 0.01, ridgeCapH, ridgeCapW]} />
+        <meshStandardMaterial color="#333333" metalness={0.5} roughness={0.4} />
+      </mesh>
+
+      {/* ── Gutters on both sides ── */}
+      <Gutter zPos={-gutterW / 2} />
+      <Gutter zPos={W + gutterW / 2} />
+
+      {/* ── Downpipes — one on each side, back corner ── */}
+      <Downpipe x={0.06} z={-gutterW / 2} />
+      <Downpipe x={0.06} z={W + gutterW / 2} />
     </group>
   );
 }
@@ -805,19 +1052,31 @@ function generatePlanks(wallLength, wallHeight, direction, rects) {
   return planks;
 }
 
-function Cladding({ cladding, elements, hiddenWalls }) {
+function Cladding({ cladding, elements, hiddenWalls, containerDoor }) {
   const { direction, color } = cladding;
   const { L, W, H, T, F } = useDims();
   const wallH = H - F;
   const depth = 0.022;
-  const off = T / 2 + depth / 2 + 0.001;
+  // Cladding sits well outside the corrugated wall outer peaks
+  // Wall corrugation peaks ≈ T*0.15 + 12mm from wall center
+  // Cladding must be clearly beyond that
+  const off = T * 0.15 + 0.012 + depth / 2 + 0.005;
 
   const walls = [
-    { name: "back",  len: W, h: wallH, pos: (p) => [-off,  F + p.y, p.x],  boxArgs: (s) => [depth, s[1], s[0]] },
-    { name: "front", len: W, h: wallH, pos: (p) => [L + off, F + p.y, p.x], boxArgs: (s) => [depth, s[1], s[0]] },
-    { name: "left",  len: L, h: wallH, pos: (p) => [p.x, F + p.y, -off],    boxArgs: (s) => [s[0], s[1], depth] },
-    { name: "right", len: L, h: wallH, pos: (p) => [p.x, F + p.y, W + off],  boxArgs: (s) => [s[0], s[1], depth] },
+    { name: "back",  len: W, h: wallH, pos: (p) => [-(off),   F + p.y, p.x],   boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "front", len: W, h: wallH, pos: (p) => [L + off,  F + p.y, p.x],   boxArgs: (s) => [depth, s[1], s[0]] },
+    { name: "left",  len: L, h: wallH, pos: (p) => [p.x,      F + p.y, -(off)], boxArgs: (s) => [s[0], s[1], depth] },
+    { name: "right", len: L, h: wallH, pos: (p) => [p.x,      F + p.y, W + off], boxArgs: (s) => [s[0], s[1], depth] },
   ];
+
+  // Container door cutout rect for the cladding (leaves border visible)
+  const doorBorder = 0.075; // 75mm border each side
+  const doorCutout = containerDoor?.enabled ? {
+    xMin: doorBorder,
+    xMax: W - doorBorder,
+    yMin: 0,
+    yMax: wallH - doorBorder,
+  } : null;
 
   return (
     <group>
@@ -825,6 +1084,10 @@ function Cladding({ cladding, elements, hiddenWalls }) {
         const rects = elements
           .filter((el) => el.wall === wall.name)
           .map((el) => elementToCladdingRect(wall.name, el, { L, W }));
+        // Add container door cutout on the door wall
+        if (doorCutout && wall.name === containerDoor.wall) {
+          rects.push(doorCutout);
+        }
         const planks = generatePlanks(wall.len, wall.h, direction, rects);
         return planks.map((plank, i) => (
           <mesh key={`${wall.name}-${i}`} position={wall.pos(plank)} castShadow>
@@ -837,44 +1100,200 @@ function Cladding({ cladding, elements, hiddenWalls }) {
   );
 }
 
-// Container door outline rendered on top of cladding
-function ContainerDoorOutline({ wall }) {
+// ── Photorealistic ISO container door ──────────────────────────
+// Full-height double door with corrugated leaves, locking bars,
+// cam handles, hinges, rubber gasket, and header beam.
+function ContainerDoor({ wall }) {
+  const containerColor = useConfigStore((s) => s.containerColor);
   const { L, W, H, T, F } = useDims();
-  const doorW = W;
-  const doorH = H - F;
-  const lineW = 0.015;
-  const off = T / 2 + 0.025 + 0.001;
-
-  const frameMat = <meshBasicMaterial color="#ffffff" />;
-  const handleMat = <meshBasicMaterial color="#e2e8f0" />;
+  const cladding = useConfigStore((s) => s.cladding);
+  const doorBorder = 0.075; // 75mm visible cladding frame around door
+  const doorW = W - doorBorder * 2;   // narrower than full wall
+  const doorH = H - F - doorBorder;   // slightly shorter (border at top)
+  const leafW = doorW / 2;
+  // Position in front of wall corrugation + cladding
+  // Cladding outer surface ≈ corrPeak + depth/2 + 5mm from wall center
+  const corrPeak = T * 0.15 + 0.012;
+  const claddingOuter = corrPeak + 0.022 / 2 + 0.005 + 0.022 / 2;
+  const off = cladding.enabled ? claddingOuter + 0.003 : corrPeak + 0.003;
 
   let pos, rotY;
   if (wall === "front") { pos = [L + off, F + doorH / 2, W / 2]; rotY = Math.PI / 2; }
   else if (wall === "back") { pos = [-off, F + doorH / 2, W / 2]; rotY = -Math.PI / 2; }
   else return null;
 
+  const leafColor = cladding.enabled ? cladding.color : containerColor;
+  const leafDark = cladding.enabled ? darkenColor(cladding.color, 0.88) : darkenColor(containerColor, 0.82);
+  const leafMetalness = cladding.enabled ? 0.1 : 0.45;
+  const leafRoughness = cladding.enabled ? 0.85 : 0.5;
+  const sealColor = "#1a1a1a";
+  const steelBright = "#c0c0c0";
+  const steelMid = "#8a8a8a";
+  const steelDark2 = "#5a5a5a";
+
+  // Corrugation for door leaves (vertical standing ribs) — only when no cladding
+  const corrPitch = 110 * S;   // mm between ribs
+  const corrDepth = cladding.enabled ? 0.022 : 8 * S; // wood plank depth or steel rib
+  const corrW     = 30 * S;    // rib width
+
+  const ribCount = Math.floor((leafW - 0.01) / corrPitch);
+
+  // Wood plank parameters (matching Cladding component)
+  const plankSize = 0.15;
+  const plankGap = 0.008;
+  const plankStep = plankSize + plankGap;
+  const claddingDir = cladding.direction || "horizontal";
+
+  function DoorLeafCorrugated({ side }) {
+    const xSign = side === "left" ? -1 : 1;
+    const xOff = xSign * leafW / 2;
+    const lW = leafW - 0.004;
+    const lH = doorH - 0.004;
+
+    return (
+      <group position={[xOff, 0, 0]}>
+        {/* Base plate behind planks/ribs */}
+        <mesh position={[0, 0, 0.001]}>
+          <boxGeometry args={[lW, lH, 0.002]} />
+          <meshStandardMaterial color={leafColor} metalness={leafMetalness} roughness={leafRoughness} />
+        </mesh>
+
+        {cladding.enabled ? (
+          /* ── Wood plank cladding on door leaf ── */
+          claddingDir === "horizontal" ? (
+            // Horizontal planks
+            Array.from({ length: Math.floor(lH / plankStep) }, (_, i) => {
+              const py = -lH / 2 + plankSize / 2 + i * plankStep;
+              return (
+                <mesh key={i} position={[0, py, 0.003 + 0.011]}>
+                  <boxGeometry args={[lW - 0.006, plankSize, 0.022]} />
+                  <meshStandardMaterial color={i % 2 === 0 ? cladding.color : leafDark} metalness={0.1} roughness={0.85} />
+                </mesh>
+              );
+            })
+          ) : (
+            // Vertical planks
+            Array.from({ length: Math.floor(lW / plankStep) }, (_, i) => {
+              const px = -lW / 2 + plankSize / 2 + i * plankStep;
+              return (
+                <mesh key={i} position={[px, 0, 0.003 + 0.011]}>
+                  <boxGeometry args={[plankSize, lH - 0.006, 0.022]} />
+                  <meshStandardMaterial color={i % 2 === 0 ? cladding.color : leafDark} metalness={0.1} roughness={0.85} />
+                </mesh>
+              );
+            })
+          )
+        ) : (
+          /* ── Steel corrugation ribs (no cladding) ── */
+          Array.from({ length: ribCount }, (_, i) => {
+            const rx = -leafW / 2 + corrPitch * (i + 1);
+            return (
+              <mesh key={i} position={[rx, 0, 0.002 + corrDepth / 2]}>
+                <boxGeometry args={[corrW, lH, corrDepth]} />
+                <meshStandardMaterial color={leafDark} metalness={0.5} roughness={0.45} />
+              </mesh>
+            );
+          })
+        )}
+
+        {/* ── Locking bar (vertical rod) ── */}
+        {(() => {
+          const barX = side === "left" ? leafW / 2 - 0.025 : -leafW / 2 + 0.025;
+          const barRadius = 0.008;
+          return (
+            <group>
+              {/* Main vertical rod */}
+              <mesh position={[barX, 0, 0.003 + corrDepth + barRadius]}>
+                <cylinderGeometry args={[barRadius, barRadius, doorH - 0.06, 8]} />
+                <meshStandardMaterial color={steelBright} metalness={0.85} roughness={0.15} />
+              </mesh>
+              {/* Top cam (rotatable lock handle) */}
+              <mesh position={[barX, doorH * 0.36, 0.003 + corrDepth + barRadius * 2 + 0.004]}>
+                <boxGeometry args={[0.05, 0.018, 0.012]} />
+                <meshStandardMaterial color={steelMid} metalness={0.8} roughness={0.2} />
+              </mesh>
+              {/* Bottom cam */}
+              <mesh position={[barX, -doorH * 0.36, 0.003 + corrDepth + barRadius * 2 + 0.004]}>
+                <boxGeometry args={[0.05, 0.018, 0.012]} />
+                <meshStandardMaterial color={steelMid} metalness={0.8} roughness={0.2} />
+              </mesh>
+              {/* Center cam (handle) */}
+              <mesh position={[barX, doorH * 0.05, 0.003 + corrDepth + barRadius * 2 + 0.006]}>
+                <boxGeometry args={[0.06, 0.025, 0.015]} />
+                <meshStandardMaterial color={steelBright} metalness={0.9} roughness={0.1} />
+              </mesh>
+            </group>
+          );
+        })()}
+
+        {/* ── Hinges (3 per leaf) ── */}
+        {[-0.38, 0, 0.38].map((yFrac, i) => {
+          const hx = side === "left" ? -leafW / 2 + 0.012 : leafW / 2 - 0.012;
+          return (
+            <group key={i} position={[hx, doorH * yFrac, 0.003]}>
+              {/* Hinge plate */}
+              <mesh>
+                <boxGeometry args={[0.04, 0.06, 0.006]} />
+                <meshStandardMaterial color={steelDark2} metalness={0.7} roughness={0.3} />
+              </mesh>
+              {/* Hinge pin */}
+              <mesh position={[0, 0, 0.006]}>
+                <cylinderGeometry args={[0.005, 0.005, 0.065, 8]} />
+                <meshStandardMaterial color={steelMid} metalness={0.85} roughness={0.15} />
+              </mesh>
+            </group>
+          );
+        })}
+      </group>
+    );
+  }
+
   return (
     <group position={pos} rotation={[0, rotY, 0]}>
-      <mesh position={[0, doorH / 2 - lineW / 2, 0]}>
-        <planeGeometry args={[doorW, lineW]} />{frameMat}
+      {/* ── Dark void behind the doors ── */}
+      <mesh position={[0, 0, -0.005]}>
+        <planeGeometry args={[doorW, doorH]} />
+        <meshBasicMaterial color="#0a0a0a" />
       </mesh>
-      <mesh position={[0, -doorH / 2 + lineW / 2, 0]}>
-        <planeGeometry args={[doorW, lineW]} />{frameMat}
+
+      {/* ── Rubber gasket / seal around the frame ── */}
+      {/* Top seal */}
+      <mesh position={[0, doorH / 2 - 0.006, 0.0005]}>
+        <boxGeometry args={[doorW + 0.01, 0.012, 0.008]} />
+        <meshStandardMaterial color={sealColor} roughness={0.9} metalness={0.05} />
       </mesh>
-      <mesh position={[-doorW / 2 + lineW / 2, 0, 0]}>
-        <planeGeometry args={[lineW, doorH]} />{frameMat}
+      {/* Bottom seal */}
+      <mesh position={[0, -doorH / 2 + 0.006, 0.0005]}>
+        <boxGeometry args={[doorW + 0.01, 0.012, 0.008]} />
+        <meshStandardMaterial color={sealColor} roughness={0.9} metalness={0.05} />
       </mesh>
-      <mesh position={[doorW / 2 - lineW / 2, 0, 0]}>
-        <planeGeometry args={[lineW, doorH]} />{frameMat}
+      {/* Left seal */}
+      <mesh position={[-doorW / 2 + 0.006, 0, 0.0005]}>
+        <boxGeometry args={[0.012, doorH, 0.008]} />
+        <meshStandardMaterial color={sealColor} roughness={0.9} metalness={0.05} />
       </mesh>
-      <mesh position={[0, 0, 0]}>
-        <planeGeometry args={[lineW, doorH - lineW * 2]} />{frameMat}
+      {/* Right seal */}
+      <mesh position={[doorW / 2 - 0.006, 0, 0.0005]}>
+        <boxGeometry args={[0.012, doorH, 0.008]} />
+        <meshStandardMaterial color={sealColor} roughness={0.9} metalness={0.05} />
       </mesh>
-      <mesh position={[-0.06, doorH * 0.42, 0.001]}>
-        <planeGeometry args={[0.03, 0.12]} />{handleMat}
+
+      {/* ── Center seam strip ── */}
+      <mesh position={[0, 0, 0.003 + corrDepth + 0.001]}>
+        <boxGeometry args={[0.008, doorH - 0.02, 0.004]} />
+        <meshStandardMaterial color={sealColor} roughness={0.85} metalness={0.1} />
       </mesh>
-      <mesh position={[0.06, doorH * 0.42, 0.001]}>
-        <planeGeometry args={[0.03, 0.12]} />{handleMat}
+
+      {/* ── Left door leaf ── */}
+      <DoorLeafCorrugated side="left" />
+
+      {/* ── Right door leaf ── */}
+      <DoorLeafCorrugated side="right" />
+
+      {/* ── Header beam (top rail) ── */}
+      <mesh position={[0, doorH / 2 + 0.012, T / 2]}>
+        <boxGeometry args={[doorW + 0.02, 0.024, T + 0.01]} />
+        <meshStandardMaterial color={containerColor} metalness={0.4} roughness={0.5} />
       </mesh>
     </group>
   );
@@ -1039,7 +1458,7 @@ function InsulationPanel({ wallName, panelW, panelH, depth, rects, color, L, W, 
 }
 
 export default function ContainerModel() {
-  const slopedRoof = useConfigStore((s) => s.slopedRoof);
+  const roofType = useConfigStore((s) => s.roofType);
   const elements = useConfigStore((s) => s.elements);
   const cladding = useConfigStore((s) => s.cladding);
   const hiddenWalls = useConfigStore((s) => s.hiddenWalls);
@@ -1075,13 +1494,17 @@ export default function ContainerModel() {
           position={[L, F + wallH / 2, W / 2]} rotation={[0, Math.PI / 2, 0]} />
       )}
 
-      {!isHidden("roof") && (slopedRoof.enabled ? <SlopedRoof /> : <FlatRoof />)}
+      {!isHidden("roof") && (
+        roofType === "sloped" ? <SlopedRoof /> :
+        roofType === "gable" ? <GableRoof /> :
+        <FlatRoof />
+      )}
 
-      {cladding.enabled && <Cladding cladding={cladding} elements={elements} hiddenWalls={hiddenWalls} />}
+      {cladding.enabled && <Cladding cladding={cladding} elements={elements} hiddenWalls={hiddenWalls} containerDoor={containerDoor} />}
 
       {insulation.enabled && <InsulationPanels insulation={insulation} elements={elements} hiddenWalls={hiddenWalls} />}
 
-      {containerDoor.enabled && <ContainerDoorOutline wall={containerDoor.wall} />}
+      {containerDoor.enabled && <ContainerDoor wall={containerDoor.wall} />}
 
       {elements.map((el) =>
         el.type === "door" ? (

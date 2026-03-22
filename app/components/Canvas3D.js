@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useImperativeHandle, forwardRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Html, Line } from "@react-three/drei";
-import { Raycaster } from "three";
+import { Raycaster, Scene, Mesh, Group, BufferGeometry, MeshStandardMaterial } from "three";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import ContainerModel from "./ContainerModel";
 import useConfigStore, { CONTAINER_SIZES, getWallDims, getActiveDims } from "../store/useConfigStore";
 
@@ -320,13 +321,67 @@ function DimensionOverlay() {
   );
 }
 
-function ViewMenu() {
+// ── GLB Export helper ──────────────────────────────────────
+const SceneExporter = forwardRef(function SceneExporter(_, ref) {
+  const { scene } = useThree();
+
+  useImperativeHandle(ref, () => ({
+    exportGLB: () => {
+      // Collect only renderable container meshes (skip grid, helpers, HTML)
+      const exportScene = new Scene();
+      scene.traverse((obj) => {
+        if (obj.isMesh && obj.geometry && obj.material && !obj.userData?.isHelper) {
+          const clone = obj.clone();
+          // Apply world transform so geometry is in the right place
+          obj.getWorldPosition(clone.position);
+          obj.getWorldQuaternion(clone.quaternion);
+          obj.getWorldScale(clone.scale);
+          exportScene.add(clone);
+        }
+      });
+
+      const exporter = new GLTFExporter();
+      return new Promise((resolve, reject) => {
+        exporter.parse(
+          exportScene,
+          (buffer) => resolve(buffer),
+          reject,
+          { binary: true }
+        );
+      });
+    },
+  }));
+
+  return null;
+});
+
+function ViewMenu({ onExportGLB }) {
   const [open, setOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const hiddenWalls = useConfigStore((s) => s.hiddenWalls);
   const toggleWallVisibility = useConfigStore((s) => s.toggleWallVisibility);
   const containerDoor = useConfigStore((s) => s.containerDoor);
   const toggleContainerDoor = useConfigStore((s) => s.toggleContainerDoor);
   const setContainerDoorWall = useConfigStore((s) => s.setContainerDoorWall);
+
+  const handleExport = async () => {
+    if (!onExportGLB || exporting) return;
+    setExporting(true);
+    try {
+      const buffer = await onExportGLB();
+      const blob = new Blob([buffer], { type: "model/gltf-binary" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "container-config.glb";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("GLB export failed:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="absolute top-4 right-4 z-10">
@@ -388,6 +443,17 @@ function ViewMenu() {
               </div>
             )}
           </div>
+          <div className="border-t border-gray-200 pt-2">
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="w-full px-2 py-1.5 text-[11px] font-medium rounded-md border transition-all
+                border-gray-200 bg-gray-50 text-gray-700 hover:border-[var(--accent)] hover:text-[var(--accent)]
+                disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exporting ? "⏳ Eksporterer…" : "📥 Last ned 3D-modell (.glb)"}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -408,9 +474,14 @@ export default function Canvas3D() {
     return [0, c.height * S / 2, 0];
   }, [containerSize, customDims]);
 
+  const exporterRef = useRef();
   const [typePicker, setTypePicker] = useState(null);
   const [ventSizeInput, setVentSizeInput] = useState(null); // { width, height }
   const [dragging, setDragging] = useState(null);
+
+  const handleExportGLB = useCallback(() => {
+    return exporterRef.current?.exportGLB();
+  }, []);
 
   const handleWallClick = useCallback(
     (wallName, localCoords) => {
@@ -495,6 +566,7 @@ export default function Canvas3D() {
         <ClickableScene onWallClick={handleWallClick} onDragStart={handleDragStart} dragging={dragging} />
         <DragHandler dragging={dragging} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
         <DimensionOverlay />
+        <SceneExporter ref={exporterRef} />
 
         <Grid
           args={[20, 20]}
@@ -653,7 +725,7 @@ export default function Canvas3D() {
         Klikk og dra for å rotere · Scroll for å zoome
       </div>
 
-      <ViewMenu />
+      <ViewMenu onExportGLB={handleExportGLB} />
     </div>
   );
 }
