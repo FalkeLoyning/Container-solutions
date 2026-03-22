@@ -12,7 +12,18 @@ export async function POST(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const connStr = `postgresql://postgres:${process.env.DB_PASSWORD}@db.${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://","").replace(".supabase.co","")}.supabase.co:5432/postgres`;
+  const ref = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace("https://","").replace(".supabase.co","");
+  const connStr = `postgresql://postgres:${process.env.DB_PASSWORD}@db.${ref}.supabase.co:5432/postgres`;
+
+  // Return debug info if connection string looks wrong
+  if (!ref || !process.env.DB_PASSWORD) {
+    return NextResponse.json({ 
+      error: "Missing env vars", 
+      hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasDbPw: !!process.env.DB_PASSWORD,
+      ref 
+    }, { status: 500 });
+  }
 
   const client = new pg.Client({
     connectionString: connStr,
